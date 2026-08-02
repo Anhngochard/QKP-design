@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POD Design Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎨</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>POD Design Manager</h1>
+        <p>Print on Demand</p>
+      </div>
+
+      <button class="btn-upload" id="btn-upload-new">
+        <span>+</span> Upload New Design
+      </button>
+
+      <nav>
+        <div class="nav-group">
+          <a class="nav-item" data-route="/dashboard"><span class="icon">🏠</span> Dashboard</a>
+          <a class="nav-item" data-route="/designs"><span class="icon">🗂️</span> All Designs</a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-label">WORKFLOW</div>
+          <a class="nav-item" data-route="/designs?status=waiting_design"><span class="icon">⏳</span> Waiting Design <span class="count" data-count="waiting_design">0</span></a>
+          <a class="nav-item" data-route="/designs?status=check_design"><span class="icon">✅</span> Check Design <span class="count" data-count="check_design">0</span></a>
+          <a class="nav-item" data-route="/designs?status=fix_design_1"><span class="icon">✏️</span> Fix Design 1 <span class="count" data-count="fix_design_1">0</span></a>
+          <a class="nav-item" data-route="/designs?status=fix_design_2"><span class="icon">✏️</span> Fix Design 2 <span class="count" data-count="fix_design_2">0</span></a>
+          <a class="nav-item" data-route="/designs?status=support_customer"><span class="icon">💬</span> Support Customer <span class="count" data-count="support_customer">0</span></a>
+          <a class="nav-item" data-route="/designs?status=done"><span class="icon">✔️</span> Done <span class="count" data-count="done">0</span></a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-label">RESOURCES</div>
+          <a class="nav-item" data-route="/colors"><span class="icon">🎨</span> Color Library</a>
+          <a class="nav-item" data-route="/storage"><span class="icon">📦</span> Design Storage</a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-label">MANAGE</div>
+          <a class="nav-item" data-route="/sellers"><span class="icon">👤</span> Sellers</a>
+          <a class="nav-item" data-route="/designers"><span class="icon">🎧</span> Designers</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="avatar">AD</div>
+        <div class="who">
+          <div class="name">Alex Designer</div>
+          <div class="role">Designer</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main" id="view-root">
+      <!-- view content rendered here -->
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

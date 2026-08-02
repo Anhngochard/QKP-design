@@ -1,0 +1,135 @@
+import { DB } from '../lib/db.js';
+import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
+import { fmtDate, escapeHtml } from '../lib/utils.js';
+import { navigate } from '../lib/router.js';
+
+function statusLabel(key) {
+  return STATUS_FLOW.find((s) => s.key === key)?.label || key;
+}
+
+export async function renderDesignList(query = {}, opts = {}) {
+  const root = document.getElementById('view-root');
+  const isStorage = !!opts.isStorage;
+  const [designs, sellers, designers] = await Promise.all([
+    DB.getAll('designs'), DB.getAll('sellers'), DB.getAll('designers'),
+  ]);
+
+  const sellerName = (id) => sellers.find((s) => s.id === id)?.name || '—';
+  const designerName = (id) => designers.find((d) => d.id === id)?.name || '—';
+
+  const state = {
+    status: query.status || '',
+    seller: query.seller || '',
+    designer: query.designer || '',
+    q: query.q || '',
+    priority: query.priority || '',
+  };
+
+  const title = isStorage
+    ? 'Design Storage'
+    : (state.status ? statusLabel(state.status) : 'All Designs');
+
+  function applyFilters(list) {
+    return list.filter((d) => {
+      if (state.status && d.status !== state.status) return false;
+      if (state.seller && d.sellerId !== state.seller) return false;
+      if (state.designer && d.designerId !== state.designer) return false;
+      if (state.priority && d.priority !== state.priority) return false;
+      if (state.q) {
+        const hay = `${d.name} ${d.product} ${d.colorName}`.toLowerCase();
+        if (!hay.includes(state.q.toLowerCase())) return false;
+      }
+      return true;
+    }).sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  function draw() {
+    const filtered = applyFilters(designs);
+
+    root.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>${title}</h2>
+          <div class="breadcrumb">${isStorage ? 'Toàn bộ file & lịch sử design đã lưu trữ' : `${filtered.length} design(s)`}</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="list-upload">+ Upload New Design</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="filters">
+          <input type="text" id="f-q" placeholder="🔍 Tìm theo tên design, sản phẩm, màu..." value="${escapeHtml(state.q)}" />
+          <select class="field" id="f-status">
+            <option value="">Tất cả trạng thái</option>
+            ${STATUS_FLOW.map((s) => `<option value="${s.key}" ${state.status === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
+          </select>
+          <select class="field" id="f-seller">
+            <option value="">Tất cả seller</option>
+            ${sellers.map((s) => `<option value="${s.id}" ${state.seller === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+          <select class="field" id="f-designer">
+            <option value="">Tất cả designer</option>
+            ${designers.map((d) => `<option value="${d.id}" ${state.designer === d.id ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}
+          </select>
+          <select class="field" id="f-priority">
+            <option value="">Mọi độ ưu tiên</option>
+            ${PRIORITIES.map((p) => `<option value="${p}" ${state.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+          </select>
+        </div>
+
+        ${filtered.length === 0 ? `
+          <div class="empty-state">
+            <div class="icon">🗂️</div>
+            Không có design nào khớp bộ lọc.
+          </div>
+        ` : `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Design</th><th>Seller</th><th>Designer</th><th>Status</th>
+              <th>Priority</th><th>Created</th><th>Due date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map((d) => `
+              <tr data-goto="${d.id}">
+                <td>
+                  <div class="design-name-cell">
+                    <img class="thumb" src="${d.mockups?.[0]?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
+                    <div>
+                      <div>${escapeHtml(d.name)}</div>
+                      <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.gender || '')} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>${escapeHtml(sellerName(d.sellerId))}</td>
+                <td>${escapeHtml(designerName(d.designerId))}</td>
+                <td><span class="badge badge-${d.status}">${statusLabel(d.status)}</span></td>
+                <td><span class="priority-${(d.priority || 'normal').toLowerCase()}">${escapeHtml(d.priority || 'Normal')}</span></td>
+                <td>${fmtDate(d.createdAt)}</td>
+                <td>${fmtDate(d.dueDate)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        `}
+      </div>
+    `;
+
+    root.querySelectorAll('[data-goto]').forEach((row) => {
+      row.addEventListener('click', () => navigate(`/design/${row.dataset.goto}`));
+    });
+    document.getElementById('list-upload').addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('open-upload-modal'));
+    });
+
+    document.getElementById('f-q').addEventListener('input', (e) => { state.q = e.target.value; draw(); });
+    document.getElementById('f-status').addEventListener('change', (e) => { state.status = e.target.value; draw(); });
+    document.getElementById('f-seller').addEventListener('change', (e) => { state.seller = e.target.value; draw(); });
+    document.getElementById('f-designer').addEventListener('change', (e) => { state.designer = e.target.value; draw(); });
+    document.getElementById('f-priority').addEventListener('change', (e) => { state.priority = e.target.value; draw(); });
+  }
+
+  draw();
+}

@@ -4,8 +4,7 @@ import { placeholderImg } from './placeholder.js';
 export const STATUS_FLOW = [
   { key: 'waiting_design', label: 'Waiting Design', icon: '⏳' },
   { key: 'check_design', label: 'Check Design', icon: '✅' },
-  { key: 'fix_design_1', label: 'Fix Design 1', icon: '✏️' },
-  { key: 'fix_design_2', label: 'Fix Design 2', icon: '✏️' },
+  { key: 'fix_design', label: 'Fix Design', icon: '✏️' },
   { key: 'support_customer', label: 'Support Customer', icon: '💬' },
   { key: 'done', label: 'Done', icon: '✔️' },
 ];
@@ -60,6 +59,12 @@ async function seedIfEmpty() {
     const seller = (n) => sellerList.find((s) => s.name === n) || sellerList[0];
     const designer = (n) => designerList.find((d) => d.name === n) || designerList[0];
 
+    const mk = (text, opts) => ({ dataUrl: placeholderImg(text, opts) });
+    const file = (name, text, opts) => ({
+      id: uid('file'), name, size: 842000, type: 'image/png',
+      dataUrl: placeholderImg(text, opts), uploadedAt: now,
+    });
+
     const samples = [
       {
         name: 'Summer Vibes', product: 'T-Shirt', gender: 'Unisex', size: 'L', colorName: 'White',
@@ -67,9 +72,9 @@ async function seedIfEmpty() {
         createdAt: now - 5 * day, dueDate: now - 3 * day,
         sellerNotes: 'Please follow the mockup style.\nFonts can be adjusted to look better.\nMake colors vibrant and summer vibes!',
         colorRefs: ['#FFB84D', '#FF7A59', '#22B2B2', '#0D3B66', '#FFFFFF', '#F4F4F4'],
-        mockups: [
-          { id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Summer Vibes', { bg: '#fdf1e6', fg: '#d98f1e' }) },
-          { id: uid('mk'), label: 'Back', dataUrl: placeholderImg('Back', { bg: '#f4f4f4', fg: '#999' }) },
+        mockupFront: mk('Summer Vibes - Front', { bg: '#fdf1e6', fg: '#d98f1e' }),
+        mockupBack: mk('Summer Vibes - Back', { bg: '#f4f4f4', fg: '#999' }),
+        mockupExtra: [
           { id: uid('mk'), label: 'Close-up', dataUrl: placeholderImg('Close-up', { bg: '#e6f0fd', fg: '#2f6fed' }) },
           { id: uid('mk'), label: 'Lifestyle', dataUrl: placeholderImg('Lifestyle', { bg: '#eef7ee', fg: '#2e9e6d' }) },
         ],
@@ -80,23 +85,33 @@ async function seedIfEmpty() {
         createdAt: now - 4 * day, dueDate: now - 1 * day,
         sellerNotes: 'Keep the retro sunset palette. Check spacing on the back print.',
         colorRefs: ['#111111', '#FF7A59', '#FFB84D'],
-        mockups: [{ id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Retro Surf', { bg: '#111', fg: '#FFB84D' }) }],
+        mockupFront: mk('Retro Surf - Front', { bg: '#111', fg: '#FFB84D' }),
+        mockupBack: mk('Retro Surf - Back', { bg: '#222', fg: '#FF7A59' }),
+        mockupExtra: [],
+        designFileFront: file('retro_surf_front_v1.png', 'Retro Surf FRONT', { bg: '#111', fg: '#FFB84D' }),
+        designFileBack: file('retro_surf_back_v1.png', 'Retro Surf BACK', { bg: '#222', fg: '#FF7A59' }),
       },
       {
         name: 'Mountain Trail Co.', product: 'T-Shirt', gender: 'Unisex', size: 'M', colorName: 'Forest Green',
-        sellerName: 'Michael Nguyen', designerName: 'Alex Designer', status: 'fix_design_1', priority: 'Normal',
+        sellerName: 'Michael Nguyen', designerName: 'Alex Designer', status: 'fix_design', priority: 'Normal',
         createdAt: now - 6 * day, dueDate: now - 2 * day,
         sellerNotes: 'Customer asked for thicker outline on the mountain icon.',
         colorRefs: ['#22B2B2', '#0D3B66'],
-        mockups: [{ id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Mountain', { bg: '#e7f7ef', fg: '#2e9e6d' }) }],
+        mockupFront: mk('Mountain - Front', { bg: '#e7f7ef', fg: '#2e9e6d' }),
+        mockupBack: null,
+        mockupExtra: [],
+        designFileFront: file('mountain_trail_front_v2.png', 'Mountain FRONT', { bg: '#e7f7ef', fg: '#2e9e6d' }),
       },
       {
         name: 'Coffee Lovers Club', product: 'Mug', gender: '-', size: '11oz', colorName: 'White',
-        sellerName: 'John Smith', designerName: 'Linh Pham', status: 'fix_design_2', priority: 'Urgent',
+        sellerName: 'John Smith', designerName: 'Linh Pham', status: 'fix_design', priority: 'Urgent',
         createdAt: now - 3 * day, dueDate: now,
         sellerNotes: 'Second round: customer wants the quote font changed to handwritten style.',
         colorRefs: ['#6d5bd0', '#FFFFFF'],
-        mockups: [{ id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Coffee', { bg: '#efeafc', fg: '#5a49b8' }) }],
+        mockupFront: mk('Coffee - Front', { bg: '#efeafc', fg: '#5a49b8' }),
+        mockupBack: null,
+        mockupExtra: [],
+        designFileFront: file('coffee_lovers_v2.png', 'Coffee FRONT', { bg: '#efeafc', fg: '#5a49b8' }),
       },
       {
         name: 'Little Explorer', product: 'Kids Tee', gender: 'Kids', size: '6-7Y', colorName: 'Sky Blue',
@@ -104,7 +119,10 @@ async function seedIfEmpty() {
         createdAt: now - 7 * day, dueDate: now - 4 * day,
         sellerNotes: 'Customer has a question about print placement, waiting on their reply.',
         colorRefs: ['#22B2B2', '#FFB84D'],
-        mockups: [{ id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Explorer', { bg: '#e6f0fd', fg: '#2f6fed' }) }],
+        mockupFront: mk('Explorer - Front', { bg: '#e6f0fd', fg: '#2f6fed' }),
+        mockupBack: null,
+        mockupExtra: [],
+        designFileFront: file('little_explorer_v1.png', 'Explorer FRONT', { bg: '#e6f0fd', fg: '#2f6fed' }),
       },
       {
         name: 'Vintage Motor Garage', product: 'T-Shirt', gender: 'Men', size: 'L', colorName: 'Charcoal',
@@ -112,7 +130,11 @@ async function seedIfEmpty() {
         createdAt: now - 12 * day, dueDate: now - 9 * day,
         sellerNotes: 'Approved, looks great!',
         colorRefs: ['#111111', '#D9483F'],
-        mockups: [{ id: uid('mk'), label: 'Front', dataUrl: placeholderImg('Motor Garage', { bg: '#fdeceb', fg: '#d9483f' }) }],
+        mockupFront: mk('Motor Garage - Front', { bg: '#fdeceb', fg: '#d9483f' }),
+        mockupBack: mk('Motor Garage - Back', { bg: '#fbe0de', fg: '#d9483f' }),
+        mockupExtra: [],
+        designFileFront: file('vintage_motor_garage_front_FINAL.png', 'Motor Garage FRONT', { bg: '#fdeceb', fg: '#d9483f' }),
+        designFileBack: file('vintage_motor_garage_back_FINAL.png', 'Motor Garage BACK', { bg: '#fbe0de', fg: '#d9483f' }),
       },
     ];
 
@@ -133,8 +155,12 @@ async function seedIfEmpty() {
         sellerNotes: s.sellerNotes,
         designerNotes: '',
         colorRefs: s.colorRefs,
-        mockups: s.mockups,
-        designFiles: [],
+        mockupFront: s.mockupFront || null,
+        mockupBack: s.mockupBack || null,
+        mockupExtra: s.mockupExtra || [],
+        designFileFront: s.designFileFront || null,
+        designFileBack: s.designFileBack || null,
+        reusedFromId: null,
         history: [{ ts: s.createdAt, text: 'Task created by seller.' }],
       });
     }

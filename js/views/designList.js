@@ -1,12 +1,11 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
-import { fmtDate, escapeHtml } from '../lib/utils.js';
+import { fmtDate, escapeHtml, toast } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 
 function statusLabel(key) {
   return STATUS_FLOW.find((s) => s.key === key)?.label || key;
 }
-
 export async function renderDesignList(query = {}, opts = {}) {
   const root = document.getElementById('view-root');
   const isStorage = !!opts.isStorage;
@@ -28,6 +27,16 @@ export async function renderDesignList(query = {}, opts = {}) {
   const title = isStorage
     ? 'Design Storage'
     : (state.status ? statusLabel(state.status) : 'All Designs');
+
+  function statusSelectHtml(d) {
+    const options = STATUS_FLOW.map((s) => {
+      const isCurrent = s.key === d.status;
+      const needsFile = s.key === 'check_design' && !d.designFileFront && !d.designFileBack;
+      const blocked = !isCurrent && needsFile;
+      return `<option value="${s.key}" ${isCurrent ? 'selected' : ''} ${blocked ? 'disabled' : ''}>${s.label}</option>`;
+    }).join('');
+    return `<select class="status-select badge badge-${d.status}" data-status-select="${d.id}">${options}</select>`;
+  }
 
   function applyFilters(list) {
     return list.filter((d) => {
@@ -96,16 +105,16 @@ export async function renderDesignList(query = {}, opts = {}) {
               <tr data-goto="${d.id}">
                 <td>
                   <div class="design-name-cell">
-                    <img class="thumb" src="${d.mockups?.[0]?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
+                    <img class="thumb" src="${d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
                     <div>
-                      <div>${escapeHtml(d.name)}</div>
+                      <div class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
                       <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.gender || '')} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
                     </div>
                   </div>
                 </td>
                 <td>${escapeHtml(sellerName(d.sellerId))}</td>
                 <td>${escapeHtml(designerName(d.designerId))}</td>
-                <td><span class="badge badge-${d.status}">${statusLabel(d.status)}</span></td>
+                <td>${statusSelectHtml(d)}</td>
                 <td><span class="priority-${(d.priority || 'normal').toLowerCase()}">${escapeHtml(d.priority || 'Normal')}</span></td>
                 <td>${fmtDate(d.createdAt)}</td>
                 <td>${fmtDate(d.dueDate)}</td>
@@ -122,6 +131,31 @@ export async function renderDesignList(query = {}, opts = {}) {
     });
     document.getElementById('list-upload').addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('open-upload-modal'));
+    });
+
+    root.querySelectorAll('[data-status-select]').forEach((sel) => {
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const d = designs.find((x) => x.id === sel.dataset.statusSelect);
+        const newStatus = sel.value;
+        if (newStatus === d.status) return;
+
+        if (newStatus === 'check_design' && !d.designFileFront && !d.designFileBack) {
+          toast('Cần mở task và upload file thiết kế trước khi chuyển sang Check Design.');
+          sel.value = d.status;
+          return;
+        }
+
+        const oldLabel = statusLabel(d.status);
+        d.status = newStatus;
+        d.history = d.history || [];
+        d.history.push({ ts: Date.now(), text: `Moved from "${oldLabel}" to "${statusLabel(newStatus)}" via list dropdown.` });
+        await DB.put('designs', d);
+        window.dispatchEvent(new CustomEvent('designs-changed'));
+        toast(`Đã chuyển "${d.name}" sang "${statusLabel(newStatus)}"`);
+        draw();
+      });
     });
 
     document.getElementById('f-q').addEventListener('input', (e) => { state.q = e.target.value; draw(); });

@@ -33,3 +33,7 @@ export function startRouter() {
   window.addEventListener('hashchange', resolve);
   resolve();
 }
+
+export function refresh() {
+  return resolve();
+}

@@ -1,8 +1,9 @@
 import { DB, uid } from '../lib/db.js';
 import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
-import { fmtDate, fmtDateTime, escapeHtml, fileToDataUrl, fmtBytes, toast } from '../lib/utils.js';
+import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
+import { uploadFile } from '../lib/storage.js';
 
 function statusIdx(key) { return STATUS_FLOW.findIndex((s) => s.key === key); }
 function statusLabel(key) { return STATUS_FLOW.find((s) => s.key === key)?.label || key; }
@@ -25,8 +26,6 @@ export async function renderDesignDetail(id) {
     DB.getAll('sellers'), DB.getAll('designers'), DB.getAll('colors'), DB.getAll('designs'),
   ]);
 
-  let activeMockupIdx = 0;
-
   async function persist(historyText) {
     if (historyText) pushHistory(design, historyText);
     await DB.put('designs', design);
@@ -42,14 +41,70 @@ export async function renderDesignDetail(id) {
     }).join('');
   }
 
+  function designFileSlotHtml(side, label, slot) {
+    if (!slot) {
+      return `
+        <div class="dropzone" data-file-drop="${side}" style="padding:20px 10px">
+          <div class="icon" style="font-size:22px">⬆️</div>
+          <div style="font-size:12.5px;font-weight:600">${label}</div>
+          <div style="font-size:11px;margin-top:2px">Choose or drop file</div>
+          <div style="font-size:10.5px;margin-top:2px">PNG / PSD / AI / PDF / SVG (Max 100MB)</div>
+          <input type="file" data-file-input="${side}" style="display:none" accept=".png,.psd,.ai,.pdf,.svg,image/*" />
+        </div>
+      `;
+    }
+    const isImage = /^image\//.test(slot.type || '') || slot.dataUrl?.startsWith('data:image');
+    const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : fmtBytes(slot.size);
+    return `
+      <div class="asset-card">
+        <div class="thumb-wrap">
+          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+            ${isImage ? `<img src="${slot.dataUrl}" />` : `<span class="file-icon">📄</span>`}
+          </a>
+          <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
+        </div>
+        <div class="info">
+          <div class="fname" title="${escapeHtml(slot.name)}">${escapeHtml(slot.name)}</div>
+          <div class="dims">${dims}</div>
+          <div class="actions-row">
+            <span class="muted">${label}</span>
+            <button class="link-btn btn-danger" data-file-remove="${side}" type="button" style="margin-left:auto">Remove</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function mockupCardHtml(mockup, fallbackLabel) {
+    if (!mockup) return `<div class="preview-box" style="min-height:160px">No ${fallbackLabel.toLowerCase()} mockup</div>`;
+    const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
+    return `
+      <div class="asset-card">
+        <div class="thumb-wrap">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+            <img src="${mockup.dataUrl}" />
+          </a>
+          <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
+        </div>
+        <div class="info">
+          <div class="fname" title="${escapeHtml(mockup.name || fallbackLabel)}">${escapeHtml(mockup.name || fallbackLabel)}</div>
+          ${dims ? `<div class="dims">${dims}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
   function draw() {
     const seller = sellers.find((s) => s.id === design.sellerId);
     const designer = designers.find((d) => d.id === design.designerId);
     const curIdx = statusIdx(design.status);
     const isDone = design.status === 'done';
-    const mockups = design.mockups || [];
-    const activeMockup = mockups[activeMockupIdx] || mockups[0];
+    const heroImg = design.mockupFront?.dataUrl || design.mockupBack?.dataUrl || '';
     const overdue = !isDone && design.dueDate && design.dueDate < Date.now();
+    const reusedFrom = design.reusedFromId ? allDesigns.find((d) => d.id === design.reusedFromId) : null;
+    const hasAnyDesignFile = !!(design.designFileFront || design.designFileBack);
+
+    const next = STATUS_FLOW[curIdx + 1];
 
     const sortedIds = [...allDesigns].sort((a, b) => a.createdAt - b.createdAt).map((d) => d.id);
     const posIdx = sortedIds.indexOf(design.id);
@@ -73,7 +128,7 @@ export async function renderDesignDetail(id) {
           <div class="detail-row2">
             <div class="card" style="flex:1.3">
               <div class="design-hero">
-                <img src="${activeMockup?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
+                <img src="${heroImg}" onerror="this.style.visibility='hidden'" />
                 <div>
                   <h2>${escapeHtml(design.name)} <span class="edit-link" id="edit-task">✏️ Edit</span></h2>
                   <div class="sub">${escapeHtml(design.product)} · ${escapeHtml(design.gender || 'Unisex')} · ${escapeHtml(design.colorName)} · ${escapeHtml(design.size)}</div>
@@ -85,6 +140,12 @@ export async function renderDesignDetail(id) {
                     <span class="badge badge-${design.status}">${statusLabel(design.status)}</span>
                     &nbsp; <span class="priority-${(design.priority || 'normal').toLowerCase()}">● Priority: ${escapeHtml(design.priority || 'Normal')}</span>
                   </div>
+                  ${reusedFrom ? `
+                    <div class="row" style="margin-top:8px;color:var(--purple-dark)">
+                      ♻️ AI tự động dùng lại thiết kế từ
+                      <span class="edit-link" id="goto-reused">"${escapeHtml(reusedFrom.name)}"</span>
+                    </div>
+                  ` : ''}
                 </div>
               </div>
             </div>
@@ -97,31 +158,11 @@ export async function renderDesignDetail(id) {
 
           <div class="detail-row2">
             <div class="card">
-              <h3>Design Work (Designer)</h3>
-              <div class="field-label">Design File</div>
-              <div class="dropzone" id="dropzone">
-                <div class="icon">⬆️</div>
-                Drag &amp; drop your design file here or
-                <div style="margin-top:10px"><button class="btn btn-primary" id="choose-file" type="button">Choose File</button></div>
-                <div style="margin-top:6px;font-size:11px">PNG / PSD / AI / PDF / SVG (Max 100MB)</div>
-                <input type="file" id="file-input" style="display:none" multiple accept=".png,.psd,.ai,.pdf,.svg,image/*" />
+              <h3>Design Work (Designer) — Front &amp; Back</h3>
+              <div class="field-row field-group">
+                <div>${designFileSlotHtml('front', 'Front Design File', design.designFileFront)}</div>
+                <div>${designFileSlotHtml('back', 'Back Design File', design.designFileBack)}</div>
               </div>
-
-              ${(design.designFiles || []).length === 0 ? `
-                <div class="preview-box">Design preview will appear here after you upload the file</div>
-              ` : `
-                <div style="margin-bottom:16px">
-                  ${design.designFiles.map((f) => `
-                    <div class="file-row">
-                      <span class="fname">📄 ${escapeHtml(f.name)} <span class="muted">(${fmtBytes(f.size)})</span></span>
-                      <span>
-                        <a class="link-btn" href="${f.dataUrl}" download="${escapeHtml(f.name)}">Download</a>
-                        &nbsp;<button class="link-btn btn-danger" data-remove-file="${f.id}" type="button">Remove</button>
-                      </span>
-                    </div>
-                  `).join('')}
-                </div>
-              `}
 
               <div class="field-group">
                 <div class="field-label">Notes from Designer</div>
@@ -131,14 +172,22 @@ export async function renderDesignDetail(id) {
             </div>
 
             <div class="card">
-              <h3>Mockup (From Seller)</h3>
-              <div class="mockup-main">
-                <img src="${activeMockup?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
+              <h3>Mockup (From Seller) — Front &amp; Back</h3>
+              <div class="field-row">
+                <div>
+                  <div class="field-label">Front</div>
+                  ${mockupCardHtml(design.mockupFront, 'Front')}
+                </div>
+                <div>
+                  <div class="field-label">Back</div>
+                  ${mockupCardHtml(design.mockupBack, 'Back')}
+                </div>
               </div>
-              ${mockups.length > 1 ? `
+
+              ${(design.mockupExtra || []).length > 0 ? `
                 <div class="mockup-thumbs">
-                  ${mockups.map((m, i) => `
-                    <div class="thumb-item ${i === activeMockupIdx ? 'active' : ''}" data-mockup-idx="${i}">
+                  ${design.mockupExtra.map((m) => `
+                    <div class="thumb-item">
                       <img src="${m.dataUrl}" />
                       <div class="cap">${escapeHtml(m.label)}</div>
                     </div>
@@ -181,14 +230,17 @@ export async function renderDesignDetail(id) {
           <div class="card">
             <h3>Files &amp; History</h3>
             <div class="field-label">Mockup (From Seller)</div>
-            ${mockups.length ? mockups.map((m) => `
+            ${design.mockupFront ? `<div class="file-row"><span class="fname">🖼️ Front</span><a class="link-btn" href="${design.mockupFront.dataUrl}" download="front.svg">↓</a></div>` : ''}
+            ${design.mockupBack ? `<div class="file-row"><span class="fname">🖼️ Back</span><a class="link-btn" href="${design.mockupBack.dataUrl}" download="back.svg">↓</a></div>` : ''}
+            ${(design.mockupExtra || []).map((m) => `
               <div class="file-row"><span class="fname">🖼️ ${escapeHtml(m.label)}</span><a class="link-btn" href="${m.dataUrl}" download="${escapeHtml(m.label)}.svg">↓</a></div>
-            `).join('') : '<div class="muted" style="margin-bottom:12px">No mockup uploaded</div>'}
+            `).join('')}
+            ${(!design.mockupFront && !design.mockupBack && (design.mockupExtra || []).length === 0) ? '<div class="muted" style="margin-bottom:12px">No mockup uploaded</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">Design File (From Designer)</div>
-            ${(design.designFiles || []).length ? design.designFiles.map((f) => `
-              <div class="file-row"><span class="fname">📄 ${escapeHtml(f.name)}</span><a class="link-btn" href="${f.dataUrl}" download="${escapeHtml(f.name)}">↓</a></div>
-            `).join('') : '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>'}
+            ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span><a class="link-btn" href="${design.designFileFront.dataUrl}" download="${escapeHtml(design.designFileFront.name)}">↓</a></div>` : ''}
+            ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span><a class="link-btn" href="${design.designFileBack.dataUrl}" download="${escapeHtml(design.designFileBack.name)}">↓</a></div>` : ''}
+            ${!hasAnyDesignFile ? '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">History</div>
             ${(design.history || []).length === 0 ? '<div class="history-empty">No activity yet</div>' : `
@@ -204,11 +256,23 @@ export async function renderDesignDetail(id) {
             <h3>Actions</h3>
             <div class="actions-stack">
               <button class="btn btn-primary btn-block" id="act-submit" ${isDone ? 'disabled' : ''}>
-                🚀 ${isDone ? 'Completed' : `Submit${curIdx >= 0 && STATUS_FLOW[curIdx + 1] ? ' → ' + STATUS_FLOW[curIdx + 1].label : ''}`}
+                🚀 ${isDone ? 'Completed' : `Submit${next ? ' → ' + next.label : ''}`}
               </button>
               <button class="btn btn-block" id="act-request-info" ${isDone ? 'disabled' : ''}>💬 Request More Info</button>
               <button class="btn btn-block" id="act-skip" ${isDone ? 'disabled' : ''}>⏭️ Skip This Task</button>
               <button class="btn btn-danger btn-block" id="act-delete" style="margin-top:6px">🗑 Delete Task</button>
+            </div>
+
+            <div class="field-group" style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
+              <div class="field-label">Hoặc chuyển nhanh đến trạng thái bất kỳ</div>
+              <select class="field" id="jump-status">
+                ${STATUS_FLOW.map((s) => {
+                  const isCurrent = s.key === design.status;
+                  const needsFile = s.key === 'check_design' && !design.designFileFront && !design.designFileBack;
+                  const blocked = !isCurrent && needsFile;
+                  return `<option value="${s.key}" ${isCurrent ? 'selected' : ''} ${blocked ? 'disabled' : ''}>${s.label}</option>`;
+                }).join('')}
+              </select>
             </div>
           </div>
         </div>
@@ -228,28 +292,29 @@ export async function renderDesignDetail(id) {
     if (!nextBtn.disabled) nextBtn.addEventListener('click', () => navigate(`/design/${sortedIds[posIdx + 1]}`));
 
     document.getElementById('edit-task').addEventListener('click', openEditModal);
+    document.getElementById('goto-reused')?.addEventListener('click', () => navigate(`/design/${design.reusedFromId}`));
 
-    root.querySelectorAll('[data-mockup-idx]').forEach((el) => {
-      el.addEventListener('click', () => { activeMockupIdx = Number(el.dataset.mockupIdx); draw(); });
-    });
-
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-    document.getElementById('choose-file').addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('click', (e) => { if (e.target.id === 'dropzone' || e.target.closest('.icon')) fileInput.click(); });
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--purple)'; });
-    dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = ''; });
-    dropzone.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      dropzone.style.borderColor = '';
-      await handleFiles(e.dataTransfer.files);
-    });
-    fileInput.addEventListener('change', async (e) => { await handleFiles(e.target.files); });
-
-    root.querySelectorAll('[data-remove-file]').forEach((btn) => {
+    root.querySelectorAll('[data-copy-link]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        design.designFiles = design.designFiles.filter((f) => f.id !== btn.dataset.removeFile);
-        await persist('Design file removed.');
+        const ok = await copyToClipboard(btn.dataset.copyLink);
+        toast(ok ? 'Đã copy link.' : 'Không copy được, thử lại.');
+      });
+    });
+
+    root.querySelectorAll('[data-file-drop]').forEach((dz) => {
+      const side = dz.dataset.fileDrop;
+      const input = dz.querySelector('[data-file-input]');
+      dz.addEventListener('click', () => input.click());
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'var(--purple)'; });
+      dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+      dz.addEventListener('drop', async (e) => { e.preventDefault(); dz.style.borderColor = ''; await handleDesignFile(side, e.dataTransfer.files[0]); });
+      input.addEventListener('change', async (e) => { await handleDesignFile(side, e.target.files[0]); });
+    });
+    root.querySelectorAll('[data-file-remove]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const side = btn.dataset.fileRemove;
+        if (side === 'front') design.designFileFront = null; else design.designFileBack = null;
+        await persist(`${side === 'front' ? 'Front' : 'Back'} design file removed.`);
         draw();
       });
     });
@@ -262,12 +327,12 @@ export async function renderDesignDetail(id) {
 
     document.getElementById('act-submit').addEventListener('click', async () => {
       const idx = statusIdx(design.status);
-      if (idx === 0 && (design.designFiles || []).length === 0) {
-        toast('Vui lòng upload file thiết kế trước khi submit.');
-        return;
-      }
       const next = STATUS_FLOW[idx + 1];
       if (!next) return;
+      if (idx === 0 && !design.designFileFront && !design.designFileBack) {
+        toast('Vui lòng upload ít nhất 1 file thiết kế (Front hoặc Back) trước khi submit.');
+        return;
+      }
       design.status = next.key;
       await persist(`Submitted by designer — moved to "${next.label}".`);
       toast(`Đã chuyển sang "${next.label}"`);
@@ -320,21 +385,42 @@ export async function renderDesignDetail(id) {
       toast('Đã xoá design.');
       navigate('/designs');
     });
+
+    document.getElementById('jump-status').addEventListener('change', async (e) => {
+      const newStatus = e.target.value;
+      if (newStatus === design.status) return;
+      if (newStatus === 'check_design' && !design.designFileFront && !design.designFileBack) {
+        toast('Cần upload ít nhất 1 file thiết kế (Front hoặc Back) trước khi chuyển sang Check Design.');
+        e.target.value = design.status;
+        return;
+      }
+      const oldLabel = statusLabel(design.status);
+      design.status = newStatus;
+      await persist(`Moved from "${oldLabel}" to "${statusLabel(newStatus)}" via detail page dropdown.`);
+      toast(`Đã chuyển sang "${statusLabel(newStatus)}"`);
+      draw();
+    });
   }
 
-  async function handleFiles(fileList) {
-    const files = Array.from(fileList || []);
-    for (const file of files) {
-      if (file.size > 100 * 1024 * 1024) { toast(`File "${file.name}" vượt quá 100MB.`); continue; }
-      const dataUrl = await fileToDataUrl(file);
-      design.designFiles = design.designFiles || [];
-      design.designFiles.push({ id: uid('file'), name: file.name, size: file.size, type: file.type, dataUrl, uploadedAt: Date.now() });
+  async function handleDesignFile(side, file) {
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) { toast(`File "${file.name}" vượt quá 100MB.`); return; }
+    const dims = await getImageDimensions(file).catch(() => null);
+    let uploaded;
+    try {
+      uploaded = await uploadFile(file, 'design-files');
+    } catch (err) {
+      toast(`Lỗi upload file: ${err.message}`);
+      return;
     }
-    if (files.length) {
-      await persist(`${files.length} design file(s) uploaded.`);
-      toast('Đã upload file thiết kế.');
-      draw();
-    }
+    const slot = {
+      id: uid(), name: file.name, size: file.size, type: file.type, dataUrl: uploaded.url, path: uploaded.path,
+      width: dims?.width, height: dims?.height, uploadedAt: Date.now(),
+    };
+    if (side === 'front') design.designFileFront = slot; else design.designFileBack = slot;
+    await persist(`${side === 'front' ? 'Front' : 'Back'} design file uploaded: ${file.name}`);
+    toast('Đã upload file thiết kế.');
+    draw();
   }
 
   function openEditModal() {
@@ -378,7 +464,7 @@ export async function renderDesignDetail(id) {
       <div class="field-row field-group">
         <div>
           <div class="field-label">Due Date</div>
-          <input type="date" id="e-due" value="${design.dueDate ? new Date(design.dueDate).toISOString().slice(0, 10) : ''}" />
+          <input type="date" id="e-due" value="${toDateInputValue(design.dueDate || Date.now())}" />
         </div>
         <div>
           <div class="field-label">Priority</div>
@@ -398,6 +484,7 @@ export async function renderDesignDetail(id) {
         document.getElementById('m-close').addEventListener('click', closeModal);
         document.getElementById('e-cancel').addEventListener('click', closeModal);
         document.getElementById('e-save').addEventListener('click', async () => {
+          const newStatus = document.getElementById('e-status').value;
           design.name = document.getElementById('e-name').value.trim() || design.name;
           design.product = document.getElementById('e-product').value.trim();
           design.gender = document.getElementById('e-gender').value.trim();
@@ -408,7 +495,7 @@ export async function renderDesignDetail(id) {
           const dueVal = document.getElementById('e-due').value;
           design.dueDate = dueVal ? new Date(dueVal).getTime() : null;
           design.priority = document.getElementById('e-priority').value;
-          design.status = document.getElementById('e-status').value;
+          design.status = newStatus;
           await persist('Task info updated.');
           closeModal();
           toast('Đã cập nhật thông tin task.');

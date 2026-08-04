@@ -44,7 +44,7 @@ export async function renderDashboard() {
       </div>
       <div class="stat-card">
         <div class="label">In Fix / Review</div>
-        <div class="value">${counts.check_design + counts.fix_design_1 + counts.fix_design_2 + counts.support_customer}</div>
+        <div class="value">${counts.check_design + counts.fix_design + counts.support_customer}</div>
         <div class="sub">Across check, fix &amp; support stages</div>
       </div>
       <div class="stat-card">
@@ -78,9 +78,9 @@ export async function renderDashboard() {
             <tr data-goto="${d.id}">
               <td>
                 <div class="design-name-cell">
-                  <img class="thumb" src="${d.mockups?.[0]?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
+                  <img class="thumb" src="${d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
                   <div>
-                    <div>${escapeHtml(d.name)}</div>
+                    <div class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
                     <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
                   </div>
                 </div>

@@ -8,7 +8,9 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div id="auth-screen" style="display:none"></div>
+
+  <div class="app-shell" id="app-shell" style="display:none">
     <aside class="sidebar">
       <div class="brand">
         <h1>POD Design Manager</h1>
@@ -29,8 +31,7 @@
           <div class="nav-label">WORKFLOW</div>
           <a class="nav-item" data-route="/designs?status=waiting_design"><span class="icon">⏳</span> Waiting Design <span class="count" data-count="waiting_design">0</span></a>
           <a class="nav-item" data-route="/designs?status=check_design"><span class="icon">✅</span> Check Design <span class="count" data-count="check_design">0</span></a>
-          <a class="nav-item" data-route="/designs?status=fix_design_1"><span class="icon">✏️</span> Fix Design 1 <span class="count" data-count="fix_design_1">0</span></a>
-          <a class="nav-item" data-route="/designs?status=fix_design_2"><span class="icon">✏️</span> Fix Design 2 <span class="count" data-count="fix_design_2">0</span></a>
+          <a class="nav-item" data-route="/designs?status=fix_design"><span class="icon">✏️</span> Fix Design <span class="count" data-count="fix_design">0</span></a>
           <a class="nav-item" data-route="/designs?status=support_customer"><span class="icon">💬</span> Support Customer <span class="count" data-count="support_customer">0</span></a>
           <a class="nav-item" data-route="/designs?status=done"><span class="icon">✔️</span> Done <span class="count" data-count="done">0</span></a>
         </div>
@@ -45,15 +46,12 @@
           <div class="nav-label">MANAGE</div>
           <a class="nav-item" data-route="/sellers"><span class="icon">👤</span> Sellers</a>
           <a class="nav-item" data-route="/designers"><span class="icon">🎧</span> Designers</a>
+          <a class="nav-item" data-route="/accounts" id="nav-accounts" style="display:none"><span class="icon">🔐</span> Manage Accounts</a>
         </div>
       </nav>
 
-      <div class="sidebar-footer">
-        <div class="avatar">AD</div>
-        <div class="who">
-          <div class="name">Alex Designer</div>
-          <div class="role">Designer</div>
-        </div>
+      <div class="sidebar-footer" id="user-footer">
+        <!-- populated by app.js with logged-in user info + logout -->
       </div>
     </aside>
 

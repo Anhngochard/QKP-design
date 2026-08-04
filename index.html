@@ -63,5 +63,17 @@
   <div id="modal-root"></div>
 
   <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+      // First visit after this feature ships: once the SW takes control, reload once
+      // so this tab also gets network-fresh assets, not just future navigations.
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (sessionStorage.getItem('sw-reloaded')) return;
+        sessionStorage.setItem('sw-reloaded', '1');
+        location.reload();
+      });
+    }
+  </script>
 </body>
 </html>

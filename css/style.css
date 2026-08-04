@@ -228,6 +228,17 @@ button { font-family: inherit; }
   word-break: break-word;
 }
 .design-name-cell .meta { color: var(--text-muted); font-size: 12px; }
+.seller-notes-cell {
+  max-width: 220px;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
 
 .filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .filters input, .filters select {

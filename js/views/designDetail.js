@@ -97,6 +97,36 @@ export async function renderDesignDetail(id) {
     `;
   }
 
+  function mockupExtraCardHtml(mockup, index) {
+    const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
+    return `
+      <div class="asset-card">
+        <div class="thumb-wrap">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+            <img src="${mockup.dataUrl}" />
+          </a>
+          <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
+        </div>
+        <div class="info">
+          <div class="fname" title="${escapeHtml(mockup.name || `More #${index + 1}`)}">${escapeHtml(mockup.name || `More #${index + 1}`)}</div>
+          ${dims ? `<div class="dims">${dims}</div>` : ''}
+          <button class="link-btn btn-danger" data-mockup-extra-remove="${index}" type="button" style="margin-top:4px">Remove</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function mockupAddMoreTileHtml() {
+    return `
+      <div class="dropzone" id="mockup-more-drop" style="padding:20px 10px">
+        <div class="icon" style="font-size:22px">⬆️</div>
+        <div style="font-size:12.5px;font-weight:600">+ Mockup More</div>
+        <div style="font-size:11px;margin-top:2px">Choose or drop image</div>
+        <input type="file" id="mockup-more-input" accept="image/*" style="display:none" />
+      </div>
+    `;
+  }
+
   function draw() {
     const seller = sellers.find((s) => s.id === design.sellerId);
     const designer = designers.find((d) => d.id === design.designerId);
@@ -165,6 +195,8 @@ export async function renderDesignDetail(id) {
               <div class="field-row field-group">
                 <div>${designFileSlotHtml('front', 'Front Design File', design.designFileFront)}</div>
                 <div>${designFileSlotHtml('back', 'Back Design File', design.designFileBack)}</div>
+                ${(design.designFilesExtra || []).map((f, i) => `<div>${designFileSlotHtml(`extra:${i}`, `Design More #${i + 1}`, f)}</div>`).join('')}
+                ${(design.designFilesExtra || []).length < 10 ? `<div>${designFileSlotHtml('extra:new', '+ Design More', null)}</div>` : ''}
               </div>
 
               <div class="field-group">
@@ -194,18 +226,19 @@ export async function renderDesignDetail(id) {
                   <div class="field-label">Back</div>
                   ${mockupCardHtml(design.mockupBack, 'Back')}
                 </div>
+                ${(design.mockupExtra || []).map((m, i) => `
+                  <div>
+                    <div class="field-label">More #${i + 1}</div>
+                    ${mockupExtraCardHtml(m, i)}
+                  </div>
+                `).join('')}
+                ${(design.mockupExtra || []).length < 10 ? `
+                  <div>
+                    <div class="field-label">&nbsp;</div>
+                    ${mockupAddMoreTileHtml()}
+                  </div>
+                ` : ''}
               </div>
-
-              ${(design.mockupExtra || []).length > 0 ? `
-                <div class="mockup-thumbs">
-                  ${design.mockupExtra.map((m) => `
-                    <div class="thumb-item">
-                      <img src="${m.dataUrl}" />
-                      <div class="cap">${escapeHtml(m.label)}</div>
-                    </div>
-                  `).join('')}
-                </div>
-              ` : ''}
 
               <div class="field-group" style="margin-top:16px">
                 <div class="field-label">Seller Notes</div>
@@ -254,15 +287,18 @@ export async function renderDesignDetail(id) {
             <div class="field-label">Mockup (From Seller)</div>
             ${design.mockupFront ? `<div class="file-row"><span class="fname">🖼️ Front</span><a class="link-btn" href="${design.mockupFront.dataUrl}" download="front.svg">↓</a></div>` : ''}
             ${design.mockupBack ? `<div class="file-row"><span class="fname">🖼️ Back</span><a class="link-btn" href="${design.mockupBack.dataUrl}" download="back.svg">↓</a></div>` : ''}
-            ${(design.mockupExtra || []).map((m) => `
-              <div class="file-row"><span class="fname">🖼️ ${escapeHtml(m.label)}</span><a class="link-btn" href="${m.dataUrl}" download="${escapeHtml(m.label)}.svg">↓</a></div>
+            ${(design.mockupExtra || []).map((m, i) => `
+              <div class="file-row"><span class="fname">🖼️ ${escapeHtml(m.name || m.label || `More #${i + 1}`)}</span><a class="link-btn" href="${m.dataUrl}" download="${escapeHtml(m.name || m.label || `more-${i + 1}`)}">↓</a></div>
             `).join('')}
             ${(!design.mockupFront && !design.mockupBack && (design.mockupExtra || []).length === 0) ? '<div class="muted" style="margin-bottom:12px">No mockup uploaded</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">Design File (From Designer)</div>
             ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span><a class="link-btn" href="${design.designFileFront.dataUrl}" download="${escapeHtml(design.designFileFront.name)}">↓</a></div>` : ''}
             ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span><a class="link-btn" href="${design.designFileBack.dataUrl}" download="${escapeHtml(design.designFileBack.name)}">↓</a></div>` : ''}
-            ${!hasAnyDesignFile ? '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>' : ''}
+            ${(design.designFilesExtra || []).map((f, i) => `
+              <div class="file-row"><span class="fname">📄 More #${i + 1} — ${escapeHtml(f.name)}</span><a class="link-btn" href="${f.dataUrl}" download="${escapeHtml(f.name)}">↓</a></div>
+            `).join('')}
+            ${!hasAnyDesignFile && (design.designFilesExtra || []).length === 0 ? '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">History</div>
             ${(design.history || []).length === 0 ? '<div class="history-empty">No activity yet</div>' : `
@@ -323,6 +359,25 @@ export async function renderDesignDetail(id) {
       });
     });
 
+    const mockupMoreDrop = document.getElementById('mockup-more-drop');
+    if (mockupMoreDrop) {
+      const mockupMoreInput = document.getElementById('mockup-more-input');
+      mockupMoreDrop.addEventListener('click', () => mockupMoreInput.click());
+      mockupMoreDrop.addEventListener('dragover', (e) => { e.preventDefault(); mockupMoreDrop.style.borderColor = 'var(--purple)'; });
+      mockupMoreDrop.addEventListener('dragleave', () => { mockupMoreDrop.style.borderColor = ''; });
+      mockupMoreDrop.addEventListener('drop', async (e) => { e.preventDefault(); mockupMoreDrop.style.borderColor = ''; await handleMockupExtra(e.dataTransfer.files[0]); });
+      mockupMoreInput.addEventListener('change', async (e) => { await handleMockupExtra(e.target.files[0]); });
+    }
+
+    root.querySelectorAll('[data-mockup-extra-remove]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.dataset.mockupExtraRemove, 10);
+        design.mockupExtra.splice(idx, 1);
+        await persist(`Mockup extra #${idx + 1} removed.`);
+        draw();
+      });
+    });
+
     root.querySelectorAll('[data-file-drop]').forEach((dz) => {
       const side = dz.dataset.fileDrop;
       const input = dz.querySelector('[data-file-input]');
@@ -335,8 +390,15 @@ export async function renderDesignDetail(id) {
     root.querySelectorAll('[data-file-remove]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const side = btn.dataset.fileRemove;
-        if (side === 'front') design.designFileFront = null; else design.designFileBack = null;
-        await persist(`${side === 'front' ? 'Front' : 'Back'} design file removed.`);
+        let label;
+        if (side === 'front') { design.designFileFront = null; label = 'Front'; }
+        else if (side === 'back') { design.designFileBack = null; label = 'Back'; }
+        else if (side.startsWith('extra:')) {
+          const idx = parseInt(side.split(':')[1], 10);
+          design.designFilesExtra.splice(idx, 1);
+          label = `More #${idx + 1}`;
+        }
+        await persist(`${label} design file removed.`);
         draw();
       });
     });
@@ -489,9 +551,46 @@ export async function renderDesignDetail(id) {
       id: uid(), name: file.name, size: file.size, type: file.type, dataUrl: uploaded.url, path: uploaded.path,
       width: dims?.width, height: dims?.height, uploadedAt: Date.now(),
     };
-    if (side === 'front') design.designFileFront = slot; else design.designFileBack = slot;
-    await persist(`${side === 'front' ? 'Front' : 'Back'} design file uploaded: ${file.name}`);
+    let label;
+    if (side === 'front') { design.designFileFront = slot; label = 'Front'; }
+    else if (side === 'back') { design.designFileBack = slot; label = 'Back'; }
+    else if (side === 'extra:new') {
+      design.designFilesExtra = design.designFilesExtra || [];
+      design.designFilesExtra.push(slot);
+      label = `More #${design.designFilesExtra.length}`;
+    }
+    try {
+      await persist(`${label} design file uploaded: ${file.name}`);
+    } catch (err) {
+      toast(`Lỗi lưu file: ${err.message}`);
+      return;
+    }
     toast('Đã upload file thiết kế.');
+    draw();
+  }
+
+  async function handleMockupExtra(file) {
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) { toast(`File "${file.name}" vượt quá 100MB.`); return; }
+    const dims = await getImageDimensions(file).catch(() => null);
+    let uploaded;
+    try {
+      uploaded = await uploadFile(file, 'mockups');
+    } catch (err) {
+      toast(`Lỗi upload ảnh: ${err.message}`);
+      return;
+    }
+    design.mockupExtra = design.mockupExtra || [];
+    design.mockupExtra.push({
+      id: uid(), name: file.name, dataUrl: uploaded.url, path: uploaded.path, width: dims?.width, height: dims?.height,
+    });
+    try {
+      await persist(`Added mockup image #${design.mockupExtra.length}: ${file.name}`);
+    } catch (err) {
+      toast(`Lỗi lưu ảnh: ${err.message}`);
+      return;
+    }
+    toast('Đã thêm ảnh mockup.');
     draw();
   }
 

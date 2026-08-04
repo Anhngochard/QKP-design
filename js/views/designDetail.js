@@ -27,6 +27,7 @@ export async function renderDesignDetail(id) {
   ]);
 
   let sellerNotesEditing = false;
+  let designerNotesEditing = false;
 
   async function persist(historyText) {
     if (historyText) pushHistory(design, historyText);
@@ -168,10 +169,18 @@ export async function renderDesignDetail(id) {
 
               <div class="field-group">
                 <div class="field-label">Notes from Designer</div>
-                <textarea id="designer-notes" placeholder="Add notes about this design...">${escapeHtml(design.designerNotes || '')}</textarea>
+                ${designerNotesEditing ? `
+                  <textarea id="designer-notes" placeholder="Add notes about this design...">${escapeHtml(design.designerNotes || '')}</textarea>
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                    <button class="btn btn-primary" id="save-notes">Save Notes</button>
+                    <button class="btn" id="cancel-notes" type="button">Cancel</button>
+                    <span class="muted" id="save-notes-status" style="font-size:12px"></span>
+                  </div>
+                ` : `
+                  <div style="white-space:pre-wrap;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#fafafc;min-height:20px">${design.designerNotes ? escapeHtml(design.designerNotes) : '<span class="muted">Chưa có ghi chú.</span>'}</div>
+                  <button class="edit-link" id="edit-notes" style="margin-top:6px;background:none;border:none;cursor:pointer;padding:0" type="button">✏️ ${design.designerNotes ? 'Sửa ghi chú' : '+ Thêm ghi chú'}</button>
+                `}
               </div>
-              <button class="btn" id="save-notes">Save Notes</button>
-              <span class="muted" id="save-notes-status" style="margin-left:8px;font-size:12px"></span>
             </div>
 
             <div class="card">
@@ -332,7 +341,17 @@ export async function renderDesignDetail(id) {
       });
     });
 
-    document.getElementById('save-notes').addEventListener('click', async () => {
+    document.getElementById('edit-notes')?.addEventListener('click', () => {
+      designerNotesEditing = true;
+      draw();
+    });
+
+    document.getElementById('cancel-notes')?.addEventListener('click', () => {
+      designerNotesEditing = false;
+      draw();
+    });
+
+    document.getElementById('save-notes')?.addEventListener('click', async () => {
       const btn = document.getElementById('save-notes');
       const statusEl = document.getElementById('save-notes-status');
       btn.disabled = true;
@@ -341,13 +360,12 @@ export async function renderDesignDetail(id) {
         design.designerNotes = document.getElementById('designer-notes').value;
         await persist();
         toast('Đã lưu ghi chú.');
-        statusEl.textContent = 'Đã lưu ✓';
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        designerNotesEditing = false;
+        draw();
       } catch (err) {
         statusEl.textContent = '';
-        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
-      } finally {
         btn.disabled = false;
+        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
       }
     });
 

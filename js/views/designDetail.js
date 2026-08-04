@@ -169,6 +169,7 @@ export async function renderDesignDetail(id) {
                 <textarea id="designer-notes" placeholder="Add notes about this design...">${escapeHtml(design.designerNotes || '')}</textarea>
               </div>
               <button class="btn" id="save-notes">Save Notes</button>
+              <span class="muted" id="save-notes-status" style="margin-left:8px;font-size:12px"></span>
             </div>
 
             <div class="card">
@@ -197,8 +198,10 @@ export async function renderDesignDetail(id) {
 
               <div class="field-group" style="margin-top:16px">
                 <div class="field-label">Seller Notes</div>
-                <div style="white-space:pre-wrap;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#fafafc">${escapeHtml(design.sellerNotes || '—')}</div>
+                <textarea id="seller-notes" placeholder="Chưa có ghi chú — bổ sung ở đây nếu seller quên điền lúc tạo task...">${escapeHtml(design.sellerNotes || '')}</textarea>
               </div>
+              <button class="btn" id="save-seller-notes">Save Notes</button>
+              <span class="muted" id="save-seller-notes-status" style="margin-left:8px;font-size:12px"></span>
 
               <div class="field-group">
                 <div class="field-label">Color Reference (From Seller)</div>
@@ -320,9 +323,41 @@ export async function renderDesignDetail(id) {
     });
 
     document.getElementById('save-notes').addEventListener('click', async () => {
-      design.designerNotes = document.getElementById('designer-notes').value;
-      await persist();
-      toast('Đã lưu ghi chú.');
+      const btn = document.getElementById('save-notes');
+      const statusEl = document.getElementById('save-notes-status');
+      btn.disabled = true;
+      statusEl.textContent = 'Đang lưu...';
+      try {
+        design.designerNotes = document.getElementById('designer-notes').value;
+        await persist();
+        toast('Đã lưu ghi chú.');
+        statusEl.textContent = 'Đã lưu ✓';
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      } catch (err) {
+        statusEl.textContent = '';
+        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('save-seller-notes').addEventListener('click', async () => {
+      const btn = document.getElementById('save-seller-notes');
+      const statusEl = document.getElementById('save-seller-notes-status');
+      btn.disabled = true;
+      statusEl.textContent = 'Đang lưu...';
+      try {
+        design.sellerNotes = document.getElementById('seller-notes').value;
+        await persist();
+        toast('Đã lưu ghi chú của seller.');
+        statusEl.textContent = 'Đã lưu ✓';
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      } catch (err) {
+        statusEl.textContent = '';
+        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     document.getElementById('act-submit').addEventListener('click', async () => {

@@ -71,14 +71,18 @@ export async function renderDashboard() {
       ${recent.length === 0 ? '<div class="empty-state">Chưa có design nào. Bấm "Upload New Design" để bắt đầu.</div>' : `
       <table class="table">
         <thead>
-          <tr><th>Design</th><th>Seller</th><th>Designer</th><th>Status</th><th>Created</th><th>Due date</th></tr>
+          <tr><th>Mockup</th><th>Design</th><th>Name</th><th>Seller</th><th>Designer</th><th>Status</th><th>Created</th><th>Seller Notes</th></tr>
         </thead>
         <tbody>
-          ${recent.map((d) => `
+          ${recent.map((d) => {
+            const mockupUrl = d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || d.mockupExtra?.[0]?.dataUrl || '';
+            const designUrl = d.designFileFront?.dataUrl || d.designFileBack?.dataUrl || d.designFilesExtra?.[0]?.dataUrl || '';
+            return `
             <tr data-goto="${d.id}">
+              <td><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></td>
+              <td><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></td>
               <td>
                 <div class="design-name-cell">
-                  <img class="thumb" src="${d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || ''}" onerror="this.style.visibility='hidden'" />
                   <div>
                     <div class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
                     <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
@@ -89,9 +93,10 @@ export async function renderDashboard() {
               <td>${escapeHtml(designerName(d.designerId))}</td>
               <td><span class="badge badge-${d.status}">${STATUS_FLOW.find((s) => s.key === d.status)?.label || d.status}</span></td>
               <td>${fmtDate(d.createdAt)}</td>
-              <td>${fmtDate(d.dueDate)}</td>
+              <td><div class="seller-notes-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
       `}

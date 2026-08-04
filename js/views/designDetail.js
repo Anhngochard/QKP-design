@@ -26,6 +26,8 @@ export async function renderDesignDetail(id) {
     DB.getAll('sellers'), DB.getAll('designers'), DB.getAll('colors'), DB.getAll('designs'),
   ]);
 
+  let sellerNotesEditing = false;
+
   async function persist(historyText) {
     if (historyText) pushHistory(design, historyText);
     await DB.put('designs', design);
@@ -198,10 +200,18 @@ export async function renderDesignDetail(id) {
 
               <div class="field-group" style="margin-top:16px">
                 <div class="field-label">Seller Notes</div>
-                <textarea id="seller-notes" placeholder="Chưa có ghi chú — bổ sung ở đây nếu seller quên điền lúc tạo task...">${escapeHtml(design.sellerNotes || '')}</textarea>
+                ${sellerNotesEditing ? `
+                  <textarea id="seller-notes" placeholder="Chưa có ghi chú — bổ sung ở đây nếu seller quên điền lúc tạo task...">${escapeHtml(design.sellerNotes || '')}</textarea>
+                  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                    <button class="btn btn-primary" id="save-seller-notes">Save Notes</button>
+                    <button class="btn" id="cancel-seller-notes" type="button">Cancel</button>
+                    <span class="muted" id="save-seller-notes-status" style="font-size:12px"></span>
+                  </div>
+                ` : `
+                  <div style="white-space:pre-wrap;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#fafafc;min-height:20px">${design.sellerNotes ? escapeHtml(design.sellerNotes) : '<span class="muted">Chưa có ghi chú.</span>'}</div>
+                  <button class="edit-link" id="edit-seller-notes" style="margin-top:6px;background:none;border:none;cursor:pointer;padding:0" type="button">✏️ ${design.sellerNotes ? 'Sửa ghi chú' : '+ Thêm ghi chú'}</button>
+                `}
               </div>
-              <button class="btn" id="save-seller-notes">Save Notes</button>
-              <span class="muted" id="save-seller-notes-status" style="margin-left:8px;font-size:12px"></span>
 
               <div class="field-group">
                 <div class="field-label">Color Reference (From Seller)</div>
@@ -341,7 +351,17 @@ export async function renderDesignDetail(id) {
       }
     });
 
-    document.getElementById('save-seller-notes').addEventListener('click', async () => {
+    document.getElementById('edit-seller-notes')?.addEventListener('click', () => {
+      sellerNotesEditing = true;
+      draw();
+    });
+
+    document.getElementById('cancel-seller-notes')?.addEventListener('click', () => {
+      sellerNotesEditing = false;
+      draw();
+    });
+
+    document.getElementById('save-seller-notes')?.addEventListener('click', async () => {
       const btn = document.getElementById('save-seller-notes');
       const statusEl = document.getElementById('save-seller-notes-status');
       btn.disabled = true;
@@ -350,13 +370,12 @@ export async function renderDesignDetail(id) {
         design.sellerNotes = document.getElementById('seller-notes').value;
         await persist();
         toast('Đã lưu ghi chú của seller.');
-        statusEl.textContent = 'Đã lưu ✓';
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        sellerNotesEditing = false;
+        draw();
       } catch (err) {
         statusEl.textContent = '';
-        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
-      } finally {
         btn.disabled = false;
+        toast(`Lưu thất bại: ${err.message || 'lỗi không xác định'}. Thử lại nhé.`);
       }
     });
 

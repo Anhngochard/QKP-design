@@ -5,6 +5,7 @@ import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
 import { getShortLink } from '../lib/shortlink.js';
+import { detectDominantColor, nearestNamedColor, loadImageFromFile } from '../lib/colorDetect.js';
 
 function statusIdx(key) { return STATUS_FLOW.findIndex((s) => s.key === key); }
 function statusLabel(key) { return STATUS_FLOW.find((s) => s.key === key)?.label || key; }
@@ -80,7 +81,16 @@ export async function renderDesignDetail(id) {
   }
 
   function mockupCardHtml(mockup, fallbackLabel, side) {
-    if (!mockup) return `<div class="preview-box" style="min-height:160px">No ${fallbackLabel.toLowerCase()} mockup</div>`;
+    if (!mockup) {
+      return `
+        <div class="dropzone" data-mockup-drop="${side}" style="padding:20px 10px">
+          <div class="icon" style="font-size:22px">⬆️</div>
+          <div style="font-size:12.5px;font-weight:600">${fallbackLabel} Mockup</div>
+          <div style="font-size:11px;margin-top:2px">Choose, drop, or paste (Ctrl+V) image</div>
+          <input type="file" data-mockup-input="${side}" accept="image/*" style="display:none" />
+        </div>
+      `;
+    }
     const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
     return `
       <div class="asset-card">
@@ -363,6 +373,16 @@ export async function renderDesignDetail(id) {
     });
 
 
+    root.querySelectorAll('[data-mockup-drop]').forEach((dz) => {
+      const side = dz.dataset.mockupDrop;
+      const input = dz.querySelector('[data-mockup-input]');
+      dz.addEventListener('click', () => input.click());
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'var(--purple)'; });
+      dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+      dz.addEventListener('drop', async (e) => { e.preventDefault(); dz.style.borderColor = ''; await handleMockupFrontBack(side, e.dataTransfer.files[0]); });
+      input.addEventListener('change', async (e) => { await handleMockupFrontBack(side, e.target.files[0]); });
+    });
+
     const mockupMoreDrop = document.getElementById('mockup-more-drop');
     if (mockupMoreDrop) {
       const mockupMoreInput = document.getElementById('mockup-more-input');
@@ -585,6 +605,42 @@ export async function renderDesignDetail(id) {
     draw();
   }
 
+  async function maybeDetectColor(file) {
+    try {
+      const img = await loadImageFromFile(file);
+      const hex = detectDominantColor(img);
+      if (!hex) return;
+      const guess = nearestNamedColor(hex);
+      if (design.colorName && design.colorName !== '—') return;
+      design.colorName = guess;
+      toast(`🎨 Tự nhận diện màu áo: ${guess} (chưa chắc chắn 100%, kiểm tra lại nhé)`);
+    } catch { /* best-effort only — never block the upload over this */ }
+  }
+
+  async function handleMockupFrontBack(side, file) {
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) { toast(`File "${file.name}" vượt quá 100MB.`); return; }
+    const dims = await getImageDimensions(file).catch(() => null);
+    let uploaded;
+    try {
+      uploaded = await uploadFile(file, 'mockups');
+    } catch (err) {
+      toast(`Lỗi upload ảnh: ${err.message}`);
+      return;
+    }
+    const slot = { id: uid(), name: file.name, dataUrl: uploaded.url, path: uploaded.path, width: dims?.width, height: dims?.height };
+    if (side === 'front') design.mockupFront = slot; else design.mockupBack = slot;
+    try {
+      await persist(`${side === 'front' ? 'Front' : 'Back'} mockup uploaded: ${file.name}`);
+    } catch (err) {
+      toast(`Lỗi lưu ảnh: ${err.message}`);
+      return;
+    }
+    toast('Đã thêm ảnh mockup.');
+    await maybeDetectColor(file);
+    draw();
+  }
+
   async function handleMockupExtra(file) {
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) { toast(`File "${file.name}" vượt quá 100MB.`); return; }
@@ -690,6 +746,24 @@ export async function renderDesignDetail(id) {
         });
       },
     });
+  }
+
+  // Attached once per page visit (not inside bindEvents/draw, which re-run on every
+  // state change) so a paste doesn't get handled multiple times.
+  document.addEventListener('paste', handlePaste);
+  async function handlePaste(e) {
+    if (!document.getElementById('back-link')) {
+      document.removeEventListener('paste', handlePaste);
+      return;
+    }
+    const items = e.clipboardData?.items || [];
+    const item = [...items].find((it) => it.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!design.mockupFront) await handleMockupFrontBack('front', file);
+    else if (!design.mockupBack) await handleMockupFrontBack('back', file);
+    else await handleMockupExtra(file);
   }
 
   draw();

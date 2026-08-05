@@ -6,6 +6,7 @@ import { openModal, closeModal } from '../lib/modal.js';
 import { computeImageHash, hammingDistanceHex, DUPLICATE_THRESHOLD } from '../lib/imageHash.js';
 import { uploadFile } from '../lib/storage.js';
 import { getCurrentProfile } from '../lib/session.js';
+import { detectDominantColor, nearestNamedColor, colorDistance, loadImageFromFile } from '../lib/colorDetect.js';
 
 function baseName(fileName) {
   return String(fileName).replace(/\.[^.]+$/, '');
@@ -38,7 +39,7 @@ export async function openUploadDesignModal() {
         <div class="dropzone" data-slot-drop="${side}" style="padding:20px 10px">
           <div class="icon" style="font-size:22px">⬆️</div>
           <div style="font-size:12.5px;font-weight:600">${label}</div>
-          <div style="font-size:11px;margin-top:2px">Choose or drop image</div>
+          <div style="font-size:11px;margin-top:2px">Choose, drop, or paste (Ctrl+V) image</div>
           <input type="file" data-slot-input="${side}" accept="image/*" style="display:none" />
         </div>
       `;
@@ -243,6 +244,25 @@ export async function openUploadDesignModal() {
     document.getElementById('u-extra-input').addEventListener('change', async (e) => { await addExtra(e.target.files); });
 
     document.getElementById('u-submit').addEventListener('click', submit);
+
+    document.addEventListener('paste', handlePaste);
+  }
+
+  // Lets a seller copy a product photo from anywhere (a browser tab, Finder preview...)
+  // and paste it straight in, instead of always having to save-to-disk then pick the file.
+  async function handlePaste(e) {
+    if (!document.getElementById('u-submit')) {
+      document.removeEventListener('paste', handlePaste);
+      return;
+    }
+    const items = e.clipboardData?.items || [];
+    const item = [...items].find((it) => it.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!mockupFront) await setSlot('front', file);
+    else if (!mockupBack) await setSlot('back', file);
+    else await addExtra([file]);
   }
 
   async function setSlot(side, file) {
@@ -282,6 +302,33 @@ export async function openUploadDesignModal() {
       }
     }
     rerenderMatch();
+    await maybeDetectColor(file);
+  }
+
+  // Best-effort: guess the garment color from the mockup photo and pre-fill/pre-select
+  // it, without overriding anything the seller already typed or picked themselves.
+  async function maybeDetectColor(file) {
+    try {
+      const img = await loadImageFromFile(file);
+      const hex = detectDominantColor(img);
+      if (!hex) return;
+
+      const colorNameInput = document.getElementById('u-color');
+      const libMatch = colorLib.find((c) => colorDistance(c.hex, hex) < 40);
+
+      if (libMatch) {
+        if (!selectedColors.has(libMatch.hex)) {
+          selectedColors.add(libMatch.hex);
+          rerenderColors();
+        }
+        if (colorNameInput && !colorNameInput.value.trim()) colorNameInput.value = libMatch.name;
+        toast(`🎨 Tự nhận diện màu áo: ${libMatch.name} (chưa chắc chắn 100%, kiểm tra lại nhé)`);
+      } else {
+        const guess = nearestNamedColor(hex);
+        if (colorNameInput && !colorNameInput.value.trim()) colorNameInput.value = guess;
+        toast(`🎨 Tự nhận diện màu áo: ${guess} (chưa chắc chắn 100%, kiểm tra lại nhé)`);
+      }
+    } catch { /* best-effort only — never block the upload over this */ }
   }
 
   async function addExtra(fileList) {

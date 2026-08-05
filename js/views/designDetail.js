@@ -79,7 +79,7 @@ export async function renderDesignDetail(id) {
     `;
   }
 
-  function mockupCardHtml(mockup, fallbackLabel) {
+  function mockupCardHtml(mockup, fallbackLabel, side) {
     if (!mockup) return `<div class="preview-box" style="min-height:160px">No ${fallbackLabel.toLowerCase()} mockup</div>`;
     const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
     return `
@@ -93,6 +93,7 @@ export async function renderDesignDetail(id) {
         <div class="info">
           <div class="fname" title="${escapeHtml(mockup.name || fallbackLabel)}">${escapeHtml(mockup.name || fallbackLabel)}</div>
           ${dims ? `<div class="dims">${dims}</div>` : ''}
+          <button class="link-btn btn-danger" data-mockup-remove="${side}" type="button" style="margin-top:4px">Remove</button>
         </div>
       </div>
     `;
@@ -221,11 +222,11 @@ export async function renderDesignDetail(id) {
               <div class="field-row">
                 <div>
                   <div class="field-label">Front</div>
-                  ${mockupCardHtml(design.mockupFront, 'Front')}
+                  ${mockupCardHtml(design.mockupFront, 'Front', 'front')}
                 </div>
                 <div>
                   <div class="field-label">Back</div>
-                  ${mockupCardHtml(design.mockupBack, 'Back')}
+                  ${mockupCardHtml(design.mockupBack, 'Back', 'back')}
                 </div>
                 ${(design.mockupExtra || []).map((m, i) => `
                   <div>
@@ -377,6 +378,18 @@ export async function renderDesignDetail(id) {
         const idx = parseInt(btn.dataset.mockupExtraRemove, 10);
         design.mockupExtra.splice(idx, 1);
         await persist(`Mockup extra #${idx + 1} removed.`);
+        draw();
+      });
+    });
+
+    root.querySelectorAll('[data-mockup-remove]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const side = btn.dataset.mockupRemove;
+        const label = side === 'front' ? 'Front' : 'Back';
+        if (side === 'front') design.mockupFront = null;
+        else if (side === 'back') design.mockupBack = null;
+        await persist(`${label} mockup removed.`);
+        toast(`Đã xoá mockup ${label}.`);
         draw();
       });
     });

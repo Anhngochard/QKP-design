@@ -22,7 +22,8 @@ export function renderLogin({ onSuccess, lockedMessage } = {}) {
 
   root.innerHTML = `
     <div class="auth-card">
-      <h1>🎨 POD Design Manager</h1>
+      <img src="assets/logo-icon.png" alt="QKP" class="auth-logo" />
+      <h1>QKP DESIGN</h1>
       <p class="muted">Đăng nhập để tiếp tục</p>
       ${lockedMessage ? `<div class="auth-error">${lockedMessage}</div>` : ''}
       <div id="login-error" class="auth-error" style="display:none"></div>

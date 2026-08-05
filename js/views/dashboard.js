@@ -32,6 +32,22 @@ export async function renderDashboard() {
     return `<span class="person-pill" style="background:${bg};color:${fg}">${escapeHtml(sellerName(sellerId))}</span>`;
   }
 
+  const statusStatClass = {
+    waiting_design: 'stat-waiting',
+    check_design: 'stat-check',
+    fix_design: 'stat-fix',
+    support_customer: 'stat-support',
+    done: 'stat-done',
+  };
+
+  // Recomputed from the live designs list on every dashboard load/reload, so it's
+  // always current (not just once a day) and automatically includes any designer
+  // added later — no separate wiring needed when a new designer account is created.
+  const designerCounts = designers.map((des) => ({
+    designer: des,
+    count: designs.filter((d) => d.designerId === des.id).length,
+  }));
+
   root.innerHTML = `
     <div class="page-header">
       <div>
@@ -44,22 +60,22 @@ export async function renderDashboard() {
     </div>
 
     <div class="grid stat-grid">
-      <div class="stat-card">
+      <div class="stat-card stat-neutral">
         <div class="label">Total Designs</div>
         <div class="value">${designs.length}</div>
         <div class="sub">${sellers.length} sellers · ${designers.length} designers</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-waiting">
         <div class="label">Waiting Design</div>
         <div class="value">${counts.waiting_design}</div>
         <div class="sub">Needs a designer to start</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-fix">
         <div class="label">In Fix / Review</div>
         <div class="value">${counts.check_design + counts.fix_design + counts.support_customer}</div>
         <div class="sub">Across check, fix &amp; support stages</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-done">
         <div class="label">Done</div>
         <div class="value">${counts.done}</div>
         <div class="sub">${overdue} task(s) overdue</div>
@@ -70,12 +86,30 @@ export async function renderDashboard() {
       <h3>Workflow Breakdown</h3>
       <div class="grid stat-grid" style="margin-bottom:0">
         ${STATUS_FLOW.map((s) => `
-          <div class="stat-card" style="cursor:pointer" data-goto-status="${s.key}">
+          <div class="stat-card ${statusStatClass[s.key] || ''}" style="cursor:pointer" data-goto-status="${s.key}">
             <div class="label">${s.icon} ${s.label}</div>
             <div class="value">${counts[s.key]}</div>
           </div>
         `).join('')}
       </div>
+    </div>
+
+    <div class="card">
+      <h3>Designs by Designer</h3>
+      ${designerCounts.length === 0 ? '<div class="empty-state">Chưa có designer nào.</div>' : `
+      <div class="grid stat-grid" style="margin-bottom:0">
+        ${designerCounts.map(({ designer, count }) => {
+          const { bg, fg } = pastelColorFor(designer.id);
+          return `
+            <div class="stat-card" style="cursor:pointer;background:${bg};border-color:transparent" data-goto-designer="${designer.id}">
+              <div class="label" style="color:${fg}">${escapeHtml(designer.name)}</div>
+              <div class="value" style="color:${fg}">${count}</div>
+              <div class="sub">design(s)</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      `}
     </div>
 
     <div class="card">
@@ -123,6 +157,9 @@ export async function renderDashboard() {
   });
   root.querySelectorAll('[data-goto-status]').forEach((card) => {
     card.addEventListener('click', () => navigate(`/designs?status=${card.dataset.gotoStatus}`));
+  });
+  root.querySelectorAll('[data-goto-designer]').forEach((card) => {
+    card.addEventListener('click', () => navigate(`/designs?designer=${card.dataset.gotoDesigner}`));
   });
   root.querySelectorAll('[data-designer-select]').forEach((sel) => {
     sel.addEventListener('click', (e) => e.stopPropagation());

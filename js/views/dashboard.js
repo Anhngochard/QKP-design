@@ -1,7 +1,6 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW } from '../lib/seed.js';
 import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
-import { getShortLink } from '../lib/shortlink.js';
 import { navigate } from '../lib/router.js';
 
 export async function renderDashboard() {
@@ -120,13 +119,7 @@ export async function renderDashboard() {
     row.addEventListener('click', () => navigate(`/design/${row.dataset.goto}`));
   });
   root.querySelectorAll('[data-thumb-link]').forEach((a) => {
-    a.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      const win = window.open('', '_blank', 'noopener');
-      const shortUrl = await getShortLink(a.href);
-      if (win) win.location.href = shortUrl;
-    });
+    a.addEventListener('click', (e) => e.stopPropagation());
   });
   root.querySelectorAll('[data-goto-status]').forEach((card) => {
     card.addEventListener('click', () => navigate(`/designs?status=${card.dataset.gotoStatus}`));

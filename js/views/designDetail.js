@@ -62,7 +62,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${slot.dataUrl}">
+          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
             ${isImage ? `<img src="${slot.dataUrl}" />` : `<span class="file-icon">📄</span>`}
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
@@ -85,7 +85,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${mockup.dataUrl}">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
             <img src="${mockup.dataUrl}" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
@@ -103,7 +103,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${mockup.dataUrl}">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
             <img src="${mockup.dataUrl}" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
@@ -361,14 +361,6 @@ export async function renderDesignDetail(id) {
       });
     });
 
-    root.querySelectorAll('[data-open-link]').forEach((a) => {
-      a.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const win = window.open('', '_blank', 'noopener');
-        const shortUrl = await getShortLink(a.dataset.openLink);
-        if (win) win.location.href = shortUrl;
-      });
-    });
 
     const mockupMoreDrop = document.getElementById('mockup-more-drop');
     if (mockupMoreDrop) {

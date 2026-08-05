@@ -38,6 +38,12 @@ export async function renderDesignList(query = {}, opts = {}) {
     return `<select class="status-select badge badge-${d.status}" data-status-select="${d.id}">${options}</select>`;
   }
 
+  function designerSelectHtml(d) {
+    const options = `<option value="">— Chưa chọn —</option>` +
+      designers.map((des) => `<option value="${des.id}" ${des.id === d.designerId ? 'selected' : ''}>${escapeHtml(des.name)}</option>`).join('');
+    return `<select class="field" data-designer-select="${d.id}" style="padding:6px 10px;font-size:12.5px">${options}</select>`;
+  }
+
   function applyFilters(list) {
     return list.filter((d) => {
       if (state.status && d.status !== state.status) return false;
@@ -117,7 +123,7 @@ export async function renderDesignList(query = {}, opts = {}) {
                   </div>
                 </td>
                 <td>${escapeHtml(sellerName(d.sellerId))}</td>
-                <td>${escapeHtml(designerName(d.designerId))}</td>
+                <td>${designerSelectHtml(d)}</td>
                 <td>${statusSelectHtml(d)}</td>
                 <td><span class="priority-${(d.priority || 'normal').toLowerCase()}">${escapeHtml(d.priority || 'Normal')}</span></td>
                 <td>${fmtDate(d.createdAt)}</td>
@@ -159,6 +165,24 @@ export async function renderDesignList(query = {}, opts = {}) {
         await DB.put('designs', d);
         window.dispatchEvent(new CustomEvent('designs-changed'));
         toast(`Đã chuyển "${d.name}" sang "${statusLabel(newStatus)}"`);
+        draw();
+      });
+    });
+
+    root.querySelectorAll('[data-designer-select]').forEach((sel) => {
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const d = designs.find((x) => x.id === sel.dataset.designerSelect);
+        const newDesignerId = sel.value || null;
+        if (newDesignerId === d.designerId) return;
+        const label = newDesignerId ? designerName(newDesignerId) : '— Chưa chọn —';
+        d.designerId = newDesignerId;
+        d.history = d.history || [];
+        d.history.push({ ts: Date.now(), text: `Designer assigned: ${label} (via list dropdown).` });
+        await DB.put('designs', d);
+        window.dispatchEvent(new CustomEvent('designs-changed'));
+        toast(`Đã gán designer "${d.name}" cho ${label}`);
         draw();
       });
     });

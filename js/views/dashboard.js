@@ -1,6 +1,6 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW } from '../lib/seed.js';
-import { fmtDate, escapeHtml } from '../lib/utils.js';
+import { fmtDate, escapeHtml, toast } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 
 export async function renderDashboard() {
@@ -10,7 +10,6 @@ export async function renderDashboard() {
   ]);
 
   const sellerName = (id) => sellers.find((s) => s.id === id)?.name || '—';
-  const designerName = (id) => designers.find((d) => d.id === id)?.name || '—';
 
   const counts = {};
   STATUS_FLOW.forEach((s) => { counts[s.key] = 0; });
@@ -19,6 +18,12 @@ export async function renderDashboard() {
   const overdue = designs.filter((d) => d.status !== 'done' && d.dueDate && d.dueDate < Date.now()).length;
 
   const recent = [...designs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+
+  function designerSelectHtml(d) {
+    const options = `<option value="">— Chưa chọn —</option>` +
+      designers.map((des) => `<option value="${des.id}" ${des.id === d.designerId ? 'selected' : ''}>${escapeHtml(des.name)}</option>`).join('');
+    return `<select class="field" data-designer-select="${d.id}" style="padding:6px 10px;font-size:12.5px">${options}</select>`;
+  }
 
   root.innerHTML = `
     <div class="page-header">
@@ -90,7 +95,7 @@ export async function renderDashboard() {
                 </div>
               </td>
               <td>${escapeHtml(sellerName(d.sellerId))}</td>
-              <td>${escapeHtml(designerName(d.designerId))}</td>
+              <td>${designerSelectHtml(d)}</td>
               <td><span class="badge badge-${d.status}">${STATUS_FLOW.find((s) => s.key === d.status)?.label || d.status}</span></td>
               <td>${fmtDate(d.createdAt)}</td>
               <td><div class="seller-notes-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
@@ -108,6 +113,23 @@ export async function renderDashboard() {
   });
   root.querySelectorAll('[data-goto-status]').forEach((card) => {
     card.addEventListener('click', () => navigate(`/designs?status=${card.dataset.gotoStatus}`));
+  });
+  root.querySelectorAll('[data-designer-select]').forEach((sel) => {
+    sel.addEventListener('click', (e) => e.stopPropagation());
+    sel.addEventListener('change', async (e) => {
+      e.stopPropagation();
+      const d = designs.find((x) => x.id === sel.dataset.designerSelect);
+      const newDesignerId = sel.value || null;
+      if (newDesignerId === d.designerId) return;
+      const label = newDesignerId ? (designers.find((des) => des.id === newDesignerId)?.name || '—') : '— Chưa chọn —';
+      d.designerId = newDesignerId;
+      d.history = d.history || [];
+      d.history.push({ ts: Date.now(), text: `Designer assigned: ${label} (via dashboard dropdown).` });
+      await DB.put('designs', d);
+      window.dispatchEvent(new CustomEvent('designs-changed'));
+      toast(`Đã gán designer "${d.name}" cho ${label}`);
+      renderDashboard();
+    });
   });
   document.getElementById('dash-upload').addEventListener('click', () => {
     window.dispatchEvent(new CustomEvent('open-upload-modal'));

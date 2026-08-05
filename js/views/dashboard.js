@@ -94,7 +94,7 @@ export async function renderDashboard() {
               <td><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></td>
               <td><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></td>
               <td>
-                <div class="design-name-cell">
+                <div class="design-name-cell boxed-cell">
                   <div>
                     <div class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
                     <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
@@ -105,7 +105,7 @@ export async function renderDashboard() {
               <td>${designerSelectHtml(d)}</td>
               <td><span class="badge badge-${d.status}">${STATUS_FLOW.find((s) => s.key === d.status)?.label || d.status}</span></td>
               <td>${fmtDate(d.createdAt)}</td>
-              <td><div class="seller-notes-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
+              <td><div class="seller-notes-cell boxed-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
             </tr>
           `;
           }).join('')}

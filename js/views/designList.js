@@ -45,6 +45,12 @@ export async function renderDesignList(query = {}, opts = {}) {
     return `<select class="field" data-designer-select="${d.id}" style="padding:6px 10px;font-size:12.5px;background:${bg};color:${fg};border-color:transparent;font-weight:600">${options}</select>`;
   }
 
+  function prioritySelectHtml(d) {
+    const cur = d.priority || 'Normal';
+    const options = PRIORITIES.map((p) => `<option value="${p}" ${p === cur ? 'selected' : ''}>${p}</option>`).join('');
+    return `<select class="field priority-select priority-${cur.toLowerCase()}" data-priority-select="${d.id}" style="padding:6px 10px;font-size:12.5px;font-weight:600">${options}</select>`;
+  }
+
   function sellerBadgeHtml(sellerId) {
     if (!sellerId) return '<span class="muted">—</span>';
     const { bg, fg } = pastelColorFor(sellerId);
@@ -122,7 +128,7 @@ export async function renderDesignList(query = {}, opts = {}) {
                 <td><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></td>
                 <td><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></td>
                 <td>
-                  <div class="design-name-cell">
+                  <div class="design-name-cell boxed-cell">
                     <div>
                       <div class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
                       <div class="meta">${escapeHtml(d.product)} · ${escapeHtml(d.gender || '')} · ${escapeHtml(d.colorName)} · ${escapeHtml(d.size)}</div>
@@ -132,9 +138,9 @@ export async function renderDesignList(query = {}, opts = {}) {
                 <td>${sellerBadgeHtml(d.sellerId)}</td>
                 <td>${designerSelectHtml(d)}</td>
                 <td>${statusSelectHtml(d)}</td>
-                <td><span class="priority-${(d.priority || 'normal').toLowerCase()}">${escapeHtml(d.priority || 'Normal')}</span></td>
+                <td>${prioritySelectHtml(d)}</td>
                 <td>${fmtDate(d.createdAt)}</td>
-                <td><div class="seller-notes-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
+                <td><div class="seller-notes-cell boxed-cell">${d.sellerNotes ? escapeHtml(d.sellerNotes) : '<span class="muted">Chưa có ghi chú</span>'}</div></td>
               </tr>
             `;
             }).join('')}
@@ -190,6 +196,24 @@ export async function renderDesignList(query = {}, opts = {}) {
         await DB.put('designs', d);
         window.dispatchEvent(new CustomEvent('designs-changed'));
         toast(`Đã gán designer "${d.name}" cho ${label}`);
+        draw();
+      });
+    });
+
+    root.querySelectorAll('[data-priority-select]').forEach((sel) => {
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const d = designs.find((x) => x.id === sel.dataset.prioritySelect);
+        const newPriority = sel.value;
+        if (newPriority === d.priority) return;
+        const oldPriority = d.priority || 'Normal';
+        d.priority = newPriority;
+        d.history = d.history || [];
+        d.history.push({ ts: Date.now(), text: `Priority changed from "${oldPriority}" to "${newPriority}" via list dropdown.` });
+        await DB.put('designs', d);
+        window.dispatchEvent(new CustomEvent('designs-changed'));
+        toast(`Đã đổi độ ưu tiên "${d.name}" thành ${newPriority}`);
         draw();
       });
     });

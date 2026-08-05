@@ -418,7 +418,7 @@ textarea { resize: vertical; min-height: 70px; }
 .muted { color: var(--text-muted); }
 
 /* Asset gallery card — thumbnail + filename + dimensions, click to open the raw URL, copy-link icon */
-.asset-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #fff; }
+.asset-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #fff; max-width: 260px; }
 .asset-card .thumb-wrap {
   position: relative; aspect-ratio: 1 / 1; background: #f4f4f6;
   display: flex; align-items: center; justify-content: center; overflow: hidden;

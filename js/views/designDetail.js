@@ -4,6 +4,7 @@ import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, ge
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
+import { getShortLink } from '../lib/shortlink.js';
 
 function statusIdx(key) { return STATUS_FLOW.findIndex((s) => s.key === key); }
 function statusLabel(key) { return STATUS_FLOW.find((s) => s.key === key)?.label || key; }
@@ -61,7 +62,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${slot.dataUrl}">
             ${isImage ? `<img src="${slot.dataUrl}" />` : `<span class="file-icon">📄</span>`}
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
@@ -84,7 +85,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${mockup.dataUrl}">
             <img src="${mockup.dataUrl}" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
@@ -102,7 +103,7 @@ export async function renderDesignDetail(id) {
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc" data-open-link="${mockup.dataUrl}">
             <img src="${mockup.dataUrl}" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
@@ -354,8 +355,18 @@ export async function renderDesignDetail(id) {
 
     root.querySelectorAll('[data-copy-link]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const ok = await copyToClipboard(btn.dataset.copyLink);
+        const shortUrl = await getShortLink(btn.dataset.copyLink);
+        const ok = await copyToClipboard(shortUrl);
         toast(ok ? 'Đã copy link.' : 'Không copy được, thử lại.');
+      });
+    });
+
+    root.querySelectorAll('[data-open-link]').forEach((a) => {
+      a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const win = window.open('', '_blank', 'noopener');
+        const shortUrl = await getShortLink(a.dataset.openLink);
+        if (win) win.location.href = shortUrl;
       });
     });
 

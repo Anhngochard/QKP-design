@@ -1,6 +1,7 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
 import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
+import { getShortLink } from '../lib/shortlink.js';
 import { navigate } from '../lib/router.js';
 
 function statusLabel(key) {
@@ -154,7 +155,13 @@ export async function renderDesignList(query = {}, opts = {}) {
       row.addEventListener('click', () => navigate(`/design/${row.dataset.goto}`));
     });
     root.querySelectorAll('[data-thumb-link]').forEach((a) => {
-      a.addEventListener('click', (e) => e.stopPropagation());
+      a.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const win = window.open('', '_blank', 'noopener');
+        const shortUrl = await getShortLink(a.href);
+        if (win) win.location.href = shortUrl;
+      });
     });
     document.getElementById('list-upload').addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('open-upload-modal'));

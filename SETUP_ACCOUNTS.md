@@ -55,6 +55,17 @@ Nếu muốn Admin tạo tài khoản trực tiếp trong trang "Manage Accounts
 
 Nếu bỏ qua bước này, Admin vẫn tạo được tài khoản bình thường qua **Supabase Dashboard → Authentication → Users → Add user** như Bước 4, chỉ là phải làm ở ngoài app.
 
+## Bước 7 — (Tuỳ chọn) Deploy tính năng rút gọn link ảnh mockup/design
+
+Mặc định, link mở/copy của ảnh mockup và file design là URL gốc trên Supabase Storage — khá dài, khó dán chia sẻ (ví dụ gửi cho xưởng in). Để có link ngắn gọn:
+
+1. Vào **SQL Editor**, chạy nội dung file [`supabase/schema_shortlinks.sql`](supabase/schema_shortlinks.sql) — tạo bảng `short_links`.
+2. Vào **Edge Functions** → **Deploy a new function** → đặt tên chính xác là `shortlink`.
+3. Mở file [`supabase/functions/shortlink/index.ts`](supabase/functions/shortlink/index.ts) trong repo, copy toàn bộ nội dung, dán đè vào trình soạn code trên Dashboard, bấm **Deploy**.
+4. Xong — quay lại app, click hoặc bấm nút 🔗 copy link trên ảnh mockup/design sẽ tự dùng link rút gọn dạng `https://<project>.supabase.co/functions/v1/shortlink/<mã>`.
+
+Nếu bỏ qua bước này, các nút mở link/copy link vẫn hoạt động bình thường, chỉ là sẽ dùng URL gốc (dài) thay vì bản rút gọn.
+
 ## Quy trình khi nhân viên nghỉ việc
 
 - Cách nhanh (khoá tạm/khoá vĩnh viễn qua app): Admin vào **Manage Accounts** trong app, tắt **Active** của tài khoản đó. Toàn bộ truy vấn dữ liệu của họ bị chặn ngay ở tầng database (RLS), phiên đăng nhập hiện tại của họ cũng bị từ chối ở lần gọi tiếp theo.

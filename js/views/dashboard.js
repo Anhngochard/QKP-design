@@ -91,8 +91,8 @@ export async function renderDashboard() {
             const designUrl = d.designFileFront?.dataUrl || d.designFileBack?.dataUrl || d.designFilesExtra?.[0]?.dataUrl || '';
             return `
             <tr data-goto="${d.id}">
-              <td><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></td>
-              <td><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></td>
+              <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+              <td>${designUrl ? `<a href="${designUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
               <td>
                 <div class="design-name-cell boxed-cell">
                   <div>
@@ -117,6 +117,9 @@ export async function renderDashboard() {
 
   root.querySelectorAll('[data-goto]').forEach((row) => {
     row.addEventListener('click', () => navigate(`/design/${row.dataset.goto}`));
+  });
+  root.querySelectorAll('[data-thumb-link]').forEach((a) => {
+    a.addEventListener('click', (e) => e.stopPropagation());
   });
   root.querySelectorAll('[data-goto-status]').forEach((card) => {
     card.addEventListener('click', () => navigate(`/designs?status=${card.dataset.gotoStatus}`));

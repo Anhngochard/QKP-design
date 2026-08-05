@@ -3,6 +3,8 @@ import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
 import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 
+const PAGE_SIZE = 20;
+
 function statusLabel(key) {
   return STATUS_FLOW.find((s) => s.key === key)?.label || key;
 }
@@ -22,6 +24,7 @@ export async function renderDesignList(query = {}, opts = {}) {
     designer: query.designer || '',
     q: query.q || '',
     priority: query.priority || '',
+    page: 1,
   };
 
   const title = isStorage
@@ -73,6 +76,10 @@ export async function renderDesignList(query = {}, opts = {}) {
 
   function draw() {
     const filtered = applyFilters(designs);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (state.page > totalPages) state.page = totalPages;
+    if (state.page < 1) state.page = 1;
+    const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
 
     root.innerHTML = `
       <div class="page-header">
@@ -120,7 +127,7 @@ export async function renderDesignList(query = {}, opts = {}) {
             </tr>
           </thead>
           <tbody>
-            ${filtered.map((d) => {
+            ${pageItems.map((d) => {
               const mockupUrl = d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || d.mockupExtra?.[0]?.dataUrl || '';
               const designUrl = d.designFileFront?.dataUrl || d.designFileBack?.dataUrl || d.designFilesExtra?.[0]?.dataUrl || '';
               return `
@@ -146,6 +153,13 @@ export async function renderDesignList(query = {}, opts = {}) {
             }).join('')}
           </tbody>
         </table>
+        ${totalPages > 1 ? `
+          <div class="pagination">
+            <button class="btn" id="page-prev" type="button" ${state.page <= 1 ? 'disabled' : ''}>‹ Prev</button>
+            <span class="muted" style="font-size:13px">Trang ${state.page} / ${totalPages}</span>
+            <button class="btn" id="page-next" type="button" ${state.page >= totalPages ? 'disabled' : ''}>Next ›</button>
+          </div>
+        ` : ''}
         `}
       </div>
     `;
@@ -221,11 +235,14 @@ export async function renderDesignList(query = {}, opts = {}) {
       });
     });
 
-    document.getElementById('f-q').addEventListener('input', (e) => { state.q = e.target.value; draw(); });
-    document.getElementById('f-status').addEventListener('change', (e) => { state.status = e.target.value; draw(); });
-    document.getElementById('f-seller').addEventListener('change', (e) => { state.seller = e.target.value; draw(); });
-    document.getElementById('f-designer').addEventListener('change', (e) => { state.designer = e.target.value; draw(); });
-    document.getElementById('f-priority').addEventListener('change', (e) => { state.priority = e.target.value; draw(); });
+    document.getElementById('f-q').addEventListener('input', (e) => { state.q = e.target.value; state.page = 1; draw(); });
+    document.getElementById('f-status').addEventListener('change', (e) => { state.status = e.target.value; state.page = 1; draw(); });
+    document.getElementById('f-seller').addEventListener('change', (e) => { state.seller = e.target.value; state.page = 1; draw(); });
+    document.getElementById('f-designer').addEventListener('change', (e) => { state.designer = e.target.value; state.page = 1; draw(); });
+    document.getElementById('f-priority').addEventListener('change', (e) => { state.priority = e.target.value; state.page = 1; draw(); });
+
+    document.getElementById('page-prev')?.addEventListener('click', () => { state.page -= 1; draw(); window.scrollTo({ top: 0 }); });
+    document.getElementById('page-next')?.addEventListener('click', () => { state.page += 1; draw(); window.scrollTo({ top: 0 }); });
   }
 
   draw();

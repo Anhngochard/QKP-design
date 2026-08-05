@@ -278,6 +278,8 @@ button { font-family: inherit; }
 }
 .filters input[type=text] { min-width: 220px; }
 
+.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 18px; }
+
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state .icon { font-size: 34px; margin-bottom: 10px; }
 

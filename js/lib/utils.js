@@ -51,6 +51,16 @@ export function toast(msg) {
   setTimeout(() => t.remove(), 2800);
 }
 
+// Deterministic pastel color for a person, so the same seller/designer always
+// gets the same badge color across rows. Returns { bg, fg } CSS colors.
+export function pastelColorFor(key) {
+  const str = String(key || '');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  return { bg: `hsl(${hue}, 70%, 90%)`, fg: `hsl(${hue}, 45%, 32%)` };
+}
+
 export function initials(name) {
   return String(name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }

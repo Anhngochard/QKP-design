@@ -1,6 +1,6 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW } from '../lib/seed.js';
-import { fmtDate, escapeHtml, toast } from '../lib/utils.js';
+import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 
 export async function renderDashboard() {
@@ -22,7 +22,14 @@ export async function renderDashboard() {
   function designerSelectHtml(d) {
     const options = `<option value="">— Chưa chọn —</option>` +
       designers.map((des) => `<option value="${des.id}" ${des.id === d.designerId ? 'selected' : ''}>${escapeHtml(des.name)}</option>`).join('');
-    return `<select class="field" data-designer-select="${d.id}" style="padding:6px 10px;font-size:12.5px">${options}</select>`;
+    const { bg, fg } = d.designerId ? pastelColorFor(d.designerId) : { bg: '#f1f1f5', fg: '#666' };
+    return `<select class="field" data-designer-select="${d.id}" style="padding:6px 10px;font-size:12.5px;background:${bg};color:${fg};border-color:transparent;font-weight:600">${options}</select>`;
+  }
+
+  function sellerBadgeHtml(sellerId) {
+    if (!sellerId) return '<span class="muted">—</span>';
+    const { bg, fg } = pastelColorFor(sellerId);
+    return `<span class="person-pill" style="background:${bg};color:${fg}">${escapeHtml(sellerName(sellerId))}</span>`;
   }
 
   root.innerHTML = `
@@ -94,7 +101,7 @@ export async function renderDashboard() {
                   </div>
                 </div>
               </td>
-              <td>${escapeHtml(sellerName(d.sellerId))}</td>
+              <td>${sellerBadgeHtml(d.sellerId)}</td>
               <td>${designerSelectHtml(d)}</td>
               <td><span class="badge badge-${d.status}">${STATUS_FLOW.find((s) => s.key === d.status)?.label || d.status}</span></td>
               <td>${fmtDate(d.createdAt)}</td>

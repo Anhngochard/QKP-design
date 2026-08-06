@@ -7,6 +7,7 @@ import { computeImageHash, hammingDistanceHex, DUPLICATE_THRESHOLD } from '../li
 import { uploadFile } from '../lib/storage.js';
 import { getCurrentProfile } from '../lib/session.js';
 import { detectDominantColor, nearestNamedColor, colorDistance, loadImageFromFile } from '../lib/colorDetect.js';
+import { thumbUrl } from '../lib/imageTransform.js';
 
 function baseName(fileName) {
   return String(fileName).replace(/\.[^.]+$/, '');
@@ -46,7 +47,7 @@ export async function openUploadDesignModal() {
     }
     return `
       <div style="position:relative;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <img src="${slot.dataUrl}" style="width:100%;height:120px;object-fit:cover;display:block" />
+        <img src="${thumbUrl(slot.dataUrl, { width: 220, height: 140 })}" loading="lazy" decoding="async" style="width:100%;height:120px;object-fit:cover;display:block" />
         <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fafafc;font-size:11.5px">
           <span style="font-weight:600">${label}</span>
           <button type="button" class="link-btn btn-danger" data-slot-remove="${side}">Remove</button>
@@ -68,7 +69,7 @@ export async function openUploadDesignModal() {
     if (mockupExtra.length === 0) return '';
     return `<div class="mockup-thumbs" style="margin-top:10px">${mockupExtra.map((m) => `
       <div class="thumb-item active" style="position:relative">
-        <img src="${m.dataUrl}" />
+        <img src="${thumbUrl(m.dataUrl, { width: 150, height: 150 })}" loading="lazy" decoding="async" />
         <div class="cap">${escapeHtml(m.label)}</div>
         <button type="button" data-extra-remove="${m.id}" style="position:absolute;top:2px;right:2px;background:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer">✕</button>
       </div>
@@ -82,7 +83,7 @@ export async function openUploadDesignModal() {
     return `
       <div class="card" style="border-color:var(--purple);background:var(--purple-light);padding:14px 16px;margin-top:16px">
         <div style="display:flex;gap:12px;align-items:center">
-          <img src="${matchedMockup.dataUrl}" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0" />
+          <img src="${thumbUrl(matchedMockup.dataUrl, { width: 100, height: 100 })}" loading="lazy" decoding="async" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0" />
           <div style="flex:1">
             <div style="font-weight:700;font-size:13px">🤖 AI phát hiện ảnh trùng mẫu với "${escapeHtml(matchedDesign.name)}"</div>
             <div class="muted" style="font-size:12px">Độ khớp ~${similarity}% · Trạng thái: ${statusLabel(matchedDesign.status)}${done ? ' · Đã có file thiết kế hoàn chỉnh' : ''}</div>

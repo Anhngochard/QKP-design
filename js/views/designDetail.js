@@ -6,6 +6,7 @@ import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
 import { getShortLink } from '../lib/shortlink.js';
 import { detectDominantColor, nearestNamedColor, loadImageFromFile } from '../lib/colorDetect.js';
+import { thumbUrl } from '../lib/imageTransform.js';
 
 function statusIdx(key) { return STATUS_FLOW.findIndex((s) => s.key === key); }
 function statusLabel(key) { return STATUS_FLOW.find((s) => s.key === key)?.label || key; }
@@ -64,7 +65,7 @@ export async function renderDesignDetail(id) {
       <div class="asset-card">
         <div class="thumb-wrap">
           <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
-            ${isImage ? `<img src="${slot.dataUrl}" />` : `<span class="file-icon">📄</span>`}
+            ${isImage ? `<img src="${thumbUrl(slot.dataUrl, { width: 300, height: 300 })}" loading="lazy" decoding="async" />` : `<span class="file-icon">📄</span>`}
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
         </div>
@@ -96,7 +97,7 @@ export async function renderDesignDetail(id) {
       <div class="asset-card">
         <div class="thumb-wrap">
           <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
-            <img src="${mockup.dataUrl}" />
+            <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" loading="lazy" decoding="async" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
         </div>
@@ -115,7 +116,7 @@ export async function renderDesignDetail(id) {
       <div class="asset-card">
         <div class="thumb-wrap">
           <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
-            <img src="${mockup.dataUrl}" />
+            <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" loading="lazy" decoding="async" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
         </div>
@@ -173,7 +174,7 @@ export async function renderDesignDetail(id) {
           <div class="detail-row2">
             <div class="card" style="flex:1.3">
               <div class="design-hero">
-                <img src="${heroImg}" onerror="this.style.visibility='hidden'" />
+                <img src="${thumbUrl(heroImg, { width: 500, height: 500 })}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
                 <div>
                   <h2>${escapeHtml(design.name)} <span class="edit-link" id="edit-task">✏️ Edit</span></h2>
                   <div class="sub">${escapeHtml(design.product)} · ${escapeHtml(design.gender || 'Unisex')} · ${escapeHtml(design.colorName)} · ${escapeHtml(design.size)}</div>

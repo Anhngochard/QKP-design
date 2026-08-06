@@ -2,6 +2,7 @@ import { DB } from '../lib/db.js';
 import { STATUS_FLOW } from '../lib/seed.js';
 import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
+import { thumbUrl } from '../lib/imageTransform.js';
 
 export async function renderDashboard() {
   const root = document.getElementById('view-root');
@@ -125,8 +126,8 @@ export async function renderDashboard() {
             const designUrl = d.designFileFront?.dataUrl || d.designFileBack?.dataUrl || d.designFilesExtra?.[0]?.dataUrl || '';
             return `
             <tr data-goto="${d.id}">
-              <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${mockupUrl}" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
-              <td>${designUrl ? `<a href="${designUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${designUrl}" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+              <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(mockupUrl)}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+              <td>${designUrl ? `<a href="${designUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(designUrl)}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
               <td>
                 <div class="design-name-cell boxed-cell">
                   <div>

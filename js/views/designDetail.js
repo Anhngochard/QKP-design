@@ -1,6 +1,6 @@
 import { DB, uid } from '../lib/db.js';
 import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
-import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard } from '../lib/utils.js';
+import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard, downloadFile } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
@@ -68,6 +68,7 @@ export async function renderDesignDetail(id) {
             ${isImage ? `<img src="${thumbUrl(slot.dataUrl, { width: 300, height: 300 })}" data-fallback="${slot.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />` : `<span class="file-icon">📄</span>`}
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
+          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(slot.dataUrl)}" data-download-name="${escapeHtml(slot.name)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
         </div>
         <div class="info">
           <div class="fname" title="${escapeHtml(slot.name)}">${escapeHtml(slot.name)}</div>
@@ -79,6 +80,10 @@ export async function renderDesignDetail(id) {
         </div>
       </div>
     `;
+  }
+
+  function downloadBtnHtml(url, filename) {
+    return `<button type="button" class="link-btn" data-download-url="${escapeHtml(url)}" data-download-name="${escapeHtml(filename)}" title="Tải xuống (đúng tên file)">↓</button>`;
   }
 
   function mockupCardHtml(mockup, fallbackLabel, side) {
@@ -100,6 +105,7 @@ export async function renderDesignDetail(id) {
             <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" data-fallback="${mockup.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
+          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(mockup.dataUrl)}" data-download-name="${escapeHtml(mockup.name || fallbackLabel)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
         </div>
         <div class="info">
           <div class="fname" title="${escapeHtml(mockup.name || fallbackLabel)}">${escapeHtml(mockup.name || fallbackLabel)}</div>
@@ -119,6 +125,7 @@ export async function renderDesignDetail(id) {
             <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" data-fallback="${mockup.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
+          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(mockup.dataUrl)}" data-download-name="${escapeHtml(mockup.name || `More #${index + 1}`)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
         </div>
         <div class="info">
           <div class="fname" title="${escapeHtml(mockup.name || `More #${index + 1}`)}">${escapeHtml(mockup.name || `More #${index + 1}`)}</div>
@@ -298,18 +305,18 @@ export async function renderDesignDetail(id) {
           <div class="card">
             <h3>Files &amp; History</h3>
             <div class="field-label">Mockup (From Seller)</div>
-            ${design.mockupFront ? `<div class="file-row"><span class="fname">🖼️ Front</span><a class="link-btn" href="${design.mockupFront.dataUrl}" download="front.svg">↓</a></div>` : ''}
-            ${design.mockupBack ? `<div class="file-row"><span class="fname">🖼️ Back</span><a class="link-btn" href="${design.mockupBack.dataUrl}" download="back.svg">↓</a></div>` : ''}
+            ${design.mockupFront ? `<div class="file-row"><span class="fname">🖼️ Front</span>${downloadBtnHtml(design.mockupFront.dataUrl, design.mockupFront.name || 'front.png')}</div>` : ''}
+            ${design.mockupBack ? `<div class="file-row"><span class="fname">🖼️ Back</span>${downloadBtnHtml(design.mockupBack.dataUrl, design.mockupBack.name || 'back.png')}</div>` : ''}
             ${(design.mockupExtra || []).map((m, i) => `
-              <div class="file-row"><span class="fname">🖼️ ${escapeHtml(m.name || m.label || `More #${i + 1}`)}</span><a class="link-btn" href="${m.dataUrl}" download="${escapeHtml(m.name || m.label || `more-${i + 1}`)}">↓</a></div>
+              <div class="file-row"><span class="fname">🖼️ ${escapeHtml(m.name || m.label || `More #${i + 1}`)}</span>${downloadBtnHtml(m.dataUrl, m.name || m.label || `more-${i + 1}.png`)}</div>
             `).join('')}
             ${(!design.mockupFront && !design.mockupBack && (design.mockupExtra || []).length === 0) ? '<div class="muted" style="margin-bottom:12px">No mockup uploaded</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">Design File (From Designer)</div>
-            ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span><a class="link-btn" href="${design.designFileFront.dataUrl}" download="${escapeHtml(design.designFileFront.name)}">↓</a></div>` : ''}
-            ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span><a class="link-btn" href="${design.designFileBack.dataUrl}" download="${escapeHtml(design.designFileBack.name)}">↓</a></div>` : ''}
+            ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span>${downloadBtnHtml(design.designFileFront.dataUrl, design.designFileFront.name)}</div>` : ''}
+            ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span>${downloadBtnHtml(design.designFileBack.dataUrl, design.designFileBack.name)}</div>` : ''}
             ${(design.designFilesExtra || []).map((f, i) => `
-              <div class="file-row"><span class="fname">📄 More #${i + 1} — ${escapeHtml(f.name)}</span><a class="link-btn" href="${f.dataUrl}" download="${escapeHtml(f.name)}">↓</a></div>
+              <div class="file-row"><span class="fname">📄 More #${i + 1} — ${escapeHtml(f.name)}</span>${downloadBtnHtml(f.dataUrl, f.name)}</div>
             `).join('')}
             ${!hasAnyDesignFile && (design.designFilesExtra || []).length === 0 ? '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>' : ''}
 
@@ -370,6 +377,22 @@ export async function renderDesignDetail(id) {
         const shortUrl = await getShortLink(btn.dataset.copyLink);
         const ok = await copyToClipboard(shortUrl);
         toast(ok ? 'Đã copy link.' : 'Không copy được, thử lại.');
+      });
+    });
+
+    root.querySelectorAll('[data-download-url]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const prevText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        try {
+          await downloadFile(btn.dataset.downloadUrl, btn.dataset.downloadName);
+        } catch (err) {
+          toast(`Lỗi tải file: ${err.message}`);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }
       });
     });
 

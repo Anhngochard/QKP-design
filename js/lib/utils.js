@@ -85,3 +85,22 @@ export async function copyToClipboard(text) {
     return false;
   }
 }
+
+// A plain <a href="crossOriginUrl" download="name"> silently ignores the `download`
+// filename hint for cross-origin URLs (which every Supabase Storage file is, relative
+// to this app) — browsers just navigate to it, saving with whatever name is in the
+// URL itself. Fetching the file as a blob and downloading that local blob URL instead
+// forces the browser to honor our filename.
+export async function downloadFile(url, filename) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Không tải được file (HTTP ${res.status})`);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename || 'download';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}

@@ -27,10 +27,24 @@ body {
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
+
+/* Thin, brand-colored scrollbars everywhere — without this, Windows browsers fall
+   back to the OS's default thick grey scrollbar, which looks noticeably clunkier
+   than macOS's overlay one and makes the whole app feel less polished there. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c7c5dd transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #c7c5dd; border-radius: 20px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #a9a6cf; background-clip: content-box; }
 
 .app-shell {
   display: grid;
@@ -364,6 +378,18 @@ textarea, input[type=text], input[type=date], input[type=email], select.field {
   font-size: 13px; font-family: inherit; background: #fff; color: var(--text);
 }
 textarea { resize: vertical; min-height: 70px; }
+
+/* Normalize the native <select> box + arrow across OS/browsers — without this,
+   Windows Chrome/Edge render their own chunky OS-style dropdown arrow that looks
+   inconsistent next to macOS's more minimal one. */
+select.field, .filters select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 30px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 55%, calc(100% - 12px) 55%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
 .field-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 6px; }
 .field-group { margin-bottom: 14px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

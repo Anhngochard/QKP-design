@@ -292,7 +292,15 @@ button { font-family: inherit; }
 }
 .filters input[type=text] { min-width: 220px; }
 
-.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 18px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.page-numbers { display: flex; align-items: center; gap: 4px; }
+.page-num-btn {
+  min-width: 30px; height: 30px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; color: var(--text); font-size: 13px; cursor: pointer;
+}
+.page-num-btn:hover { border-color: var(--purple); }
+.page-num-btn.active { background: var(--purple); border-color: var(--purple); color: #fff; font-weight: 600; cursor: default; }
+.page-ellipsis { padding: 0 4px; color: var(--text-muted); font-size: 13px; }
 
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state .icon { font-size: 34px; margin-bottom: 10px; }

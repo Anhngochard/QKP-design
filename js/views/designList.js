@@ -6,6 +6,27 @@ import { thumbUrl } from '../lib/imageTransform.js';
 
 const PAGE_SIZE = 20;
 
+// Builds a compact page-number list like [1, 2, '...', 9, 10, 11, '...', 19] —
+// always shows the first/last page plus a window around the current page, and
+// collapses everything else behind '...' so it stays readable at 50+ pages.
+function pageNumbers(current, total) {
+  const delta = 1;
+  const range = [];
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+  const result = [];
+  let prev = 0;
+  for (const i of range) {
+    if (prev && i - prev > 1) result.push('...');
+    result.push(i);
+    prev = i;
+  }
+  return result;
+}
+
 function statusLabel(key) {
   return STATUS_FLOW.find((s) => s.key === key)?.label || key;
 }
@@ -157,7 +178,12 @@ export async function renderDesignList(query = {}, opts = {}) {
         ${totalPages > 1 ? `
           <div class="pagination">
             <button class="btn" id="page-prev" type="button" ${state.page <= 1 ? 'disabled' : ''}>‹ Prev</button>
-            <span class="muted" style="font-size:13px">Trang ${state.page} / ${totalPages}</span>
+            <div class="page-numbers">
+              ${pageNumbers(state.page, totalPages).map((p) => p === '...'
+                ? `<span class="page-ellipsis">…</span>`
+                : `<button type="button" class="page-num-btn ${p === state.page ? 'active' : ''}" data-goto-page="${p}">${p}</button>`
+              ).join('')}
+            </div>
             <button class="btn" id="page-next" type="button" ${state.page >= totalPages ? 'disabled' : ''}>Next ›</button>
           </div>
         ` : ''}
@@ -244,6 +270,9 @@ export async function renderDesignList(query = {}, opts = {}) {
 
     document.getElementById('page-prev')?.addEventListener('click', () => { state.page -= 1; draw(); window.scrollTo({ top: 0 }); });
     document.getElementById('page-next')?.addEventListener('click', () => { state.page += 1; draw(); window.scrollTo({ top: 0 }); });
+    root.querySelectorAll('[data-goto-page]').forEach((btn) => {
+      btn.addEventListener('click', () => { state.page = parseInt(btn.dataset.gotoPage, 10); draw(); window.scrollTo({ top: 0 }); });
+    });
   }
 
   draw();

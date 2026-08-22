@@ -361,7 +361,12 @@ export async function renderDesignDetail(id) {
   }
 
   function bindEvents() {
-    document.getElementById('back-link').addEventListener('click', () => navigate('/designs'));
+    document.getElementById('back-link').addEventListener('click', () => {
+      // Prefer returning to whatever list page/filters the user came from (browser
+      // history) over always resetting to a bare, unfiltered /designs at page 1.
+      if (window.history.length > 1) window.history.back();
+      else navigate('/designs');
+    });
     const prevBtn = document.getElementById('prev-task');
     const nextBtn = document.getElementById('next-task');
     const sortedIds = [...allDesigns].sort((a, b) => a.createdAt - b.createdAt).map((d) => d.id);

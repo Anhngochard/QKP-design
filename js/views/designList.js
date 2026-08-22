@@ -46,12 +46,32 @@ export async function renderDesignList(query = {}, opts = {}) {
     designer: query.designer || '',
     q: query.q || '',
     priority: query.priority || '',
-    page: 1,
+    page: parseInt(query.page, 10) || 1,
   };
 
   const title = isStorage
     ? 'Design Storage'
     : (state.status ? statusLabel(state.status) : 'All Designs');
+
+  // Keeps the URL's query string in sync with the current filters/page (via
+  // replaceState, so it doesn't spam browser history or trigger a re-render) —
+  // so clicking a row into the detail page then hitting "Back to list" lands
+  // back on the exact same page/filters instead of always resetting to page 1.
+  function syncStateToUrl() {
+    const params = new URLSearchParams();
+    if (state.status) params.set('status', state.status);
+    if (state.seller) params.set('seller', state.seller);
+    if (state.designer) params.set('designer', state.designer);
+    if (state.q) params.set('q', state.q);
+    if (state.priority) params.set('priority', state.priority);
+    if (state.page > 1) params.set('page', state.page);
+    const qs = params.toString();
+    const path = isStorage ? '/storage' : '/designs';
+    const newHash = `#${path}${qs ? '?' + qs : ''}`;
+    if (window.location.hash !== newHash) {
+      window.history.replaceState(null, '', newHash);
+    }
+  }
 
   function statusSelectHtml(d) {
     const options = STATUS_FLOW.map((s) => {
@@ -102,6 +122,7 @@ export async function renderDesignList(query = {}, opts = {}) {
     if (state.page > totalPages) state.page = totalPages;
     if (state.page < 1) state.page = 1;
     const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+    syncStateToUrl();
 
     root.innerHTML = `
       <div class="page-header">

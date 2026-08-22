@@ -185,6 +185,11 @@ export async function renderDesignList(query = {}, opts = {}) {
               ).join('')}
             </div>
             <button class="btn" id="page-next" type="button" ${state.page >= totalPages ? 'disabled' : ''}>Next ›</button>
+            <form id="page-jump-form" class="page-jump">
+              <span class="muted" style="font-size:12.5px">Đến trang</span>
+              <input type="number" id="page-jump-input" min="1" max="${totalPages}" placeholder="${totalPages}" />
+              <button class="btn" type="submit">Đi</button>
+            </form>
           </div>
         ` : ''}
         `}
@@ -272,6 +277,18 @@ export async function renderDesignList(query = {}, opts = {}) {
     document.getElementById('page-next')?.addEventListener('click', () => { state.page += 1; draw(); window.scrollTo({ top: 0 }); });
     root.querySelectorAll('[data-goto-page]').forEach((btn) => {
       btn.addEventListener('click', () => { state.page = parseInt(btn.dataset.gotoPage, 10); draw(); window.scrollTo({ top: 0 }); });
+    });
+    document.getElementById('page-jump-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('page-jump-input');
+      const n = parseInt(input.value, 10);
+      if (!n || n < 1 || n > totalPages) {
+        toast(`Nhập số trang từ 1 đến ${totalPages}.`);
+        return;
+      }
+      state.page = n;
+      draw();
+      window.scrollTo({ top: 0 });
     });
   }
 

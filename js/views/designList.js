@@ -109,7 +109,7 @@ export async function renderDesignList(query = {}, opts = {}) {
       if (state.designer && d.designerId !== state.designer) return false;
       if (state.priority && d.priority !== state.priority) return false;
       if (state.q) {
-        const hay = `${d.name} ${d.product} ${d.colorName}`.toLowerCase();
+        const hay = `${d.name} ${d.product} ${d.colorName} ${d.sellerNotes || ''} ${d.designerNotes || ''}`.toLowerCase();
         if (!hay.includes(state.q.toLowerCase())) return false;
       }
       return true;
@@ -137,7 +137,7 @@ export async function renderDesignList(query = {}, opts = {}) {
 
       <div class="card">
         <div class="filters">
-          <input type="text" id="f-q" placeholder="🔍 Tìm theo tên design, sản phẩm, màu..." value="${escapeHtml(state.q)}" />
+          <input type="text" id="f-q" placeholder="🔍 Tìm theo tên design, sản phẩm, màu, mã đơn, ghi chú..." value="${escapeHtml(state.q)}" />
           <select class="field" id="f-status">
             <option value="">Tất cả trạng thái</option>
             ${STATUS_FLOW.map((s) => `<option value="${s.key}" ${state.status === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}

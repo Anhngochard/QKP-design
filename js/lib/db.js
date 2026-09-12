@@ -65,11 +65,29 @@ function designToRow(design) {
   };
 }
 
+// Supabase/PostgREST caps a single request at 1000 rows by default. Now that
+// the "designs" table has crossed that count, a plain .select() silently drops
+// everything past row #1000 (newest tasks — insertion order — disappear from
+// every list/count in the app). Page through in batches of 1000 until a page
+// comes back short, then concatenate.
+const PAGE_SIZE = 1000;
+
 export const DB = {
   async getAll(table) {
-    const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: true });
-    if (error) throw error;
-    return table === 'designs' ? data.map(rowToDesign) : data;
+    let all = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      all = all.concat(data);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return table === 'designs' ? all.map(rowToDesign) : all;
   },
 
   async get(table, id) {

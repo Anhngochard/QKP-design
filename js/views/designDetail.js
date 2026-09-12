@@ -4,6 +4,7 @@ import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, ge
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
+import { uploadFileToDrive } from '../lib/googleDrive.js';
 import { getShortLink } from '../lib/shortlink.js';
 import { detectDominantColor, nearestNamedColor, loadImageFromFile } from '../lib/colorDetect.js';
 import { thumbUrl } from '../lib/imageTransform.js';
@@ -61,14 +62,19 @@ export async function renderDesignDetail(id) {
     }
     const isImage = /^image\//.test(slot.type || '') || slot.dataUrl?.startsWith('data:image');
     const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : fmtBytes(slot.size);
+    const isDrive = slot.provider === 'drive';
+    const openHref = isDrive ? slot.viewUrl : slot.dataUrl;
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${slot.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
+          <a href="${openHref}" target="_blank" rel="noopener" title="Mở link gốc">
             ${isImage ? `<img src="${thumbUrl(slot.dataUrl, { width: 300, height: 300 })}" data-fallback="${slot.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />` : `<span class="file-icon">📄</span>`}
           </a>
-          <button type="button" class="copy-icon-btn" data-copy-link="${slot.dataUrl}" title="Copy link">🔗</button>
-          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(slot.dataUrl)}" data-download-name="${escapeHtml(slot.name)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
+          <button type="button" class="copy-icon-btn" data-copy-link="${escapeHtml(openHref)}" title="Copy link">🔗</button>
+          ${isDrive
+            ? `<a class="copy-icon-btn" href="${slot.viewUrl}" target="_blank" rel="noopener" style="right:40px;text-decoration:none" title="Mở trên Drive để tải (đúng tên file)">⬇️</a>`
+            : `<button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(slot.dataUrl)}" data-download-name="${escapeHtml(slot.name)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>`
+          }
         </div>
         <div class="info">
           <div class="fname" title="${escapeHtml(slot.name)}">${escapeHtml(slot.name)}</div>
@@ -84,6 +90,16 @@ export async function renderDesignDetail(id) {
 
   function downloadBtnHtml(url, filename) {
     return `<button type="button" class="link-btn" data-download-url="${escapeHtml(url)}" data-download-name="${escapeHtml(filename)}" title="Tải xuống (đúng tên file)">↓</button>`;
+  }
+
+  // Files hosted on Google Drive don't allow our fetch-as-blob download trick
+  // (no CORS), so send those through Drive's own preview page instead — it
+  // already has a reliable Download button that keeps the original filename.
+  function downloadLinkHtml(slot) {
+    if (slot.provider === 'drive') {
+      return `<a class="link-btn" href="${slot.viewUrl}" target="_blank" rel="noopener" title="Mở trên Drive để tải">↓</a>`;
+    }
+    return downloadBtnHtml(slot.dataUrl, slot.name);
   }
 
   function mockupCardHtml(mockup, fallbackLabel, side) {
@@ -313,10 +329,10 @@ export async function renderDesignDetail(id) {
             ${(!design.mockupFront && !design.mockupBack && (design.mockupExtra || []).length === 0) ? '<div class="muted" style="margin-bottom:12px">No mockup uploaded</div>' : ''}
 
             <div class="field-label" style="margin-top:10px">Design File (From Designer)</div>
-            ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span>${downloadBtnHtml(design.designFileFront.dataUrl, design.designFileFront.name)}</div>` : ''}
-            ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span>${downloadBtnHtml(design.designFileBack.dataUrl, design.designFileBack.name)}</div>` : ''}
+            ${design.designFileFront ? `<div class="file-row"><span class="fname">📄 Front — ${escapeHtml(design.designFileFront.name)}</span>${downloadLinkHtml(design.designFileFront)}</div>` : ''}
+            ${design.designFileBack ? `<div class="file-row"><span class="fname">📄 Back — ${escapeHtml(design.designFileBack.name)}</span>${downloadLinkHtml(design.designFileBack)}</div>` : ''}
             ${(design.designFilesExtra || []).map((f, i) => `
-              <div class="file-row"><span class="fname">📄 More #${i + 1} — ${escapeHtml(f.name)}</span>${downloadBtnHtml(f.dataUrl, f.name)}</div>
+              <div class="file-row"><span class="fname">📄 More #${i + 1} — ${escapeHtml(f.name)}</span>${downloadLinkHtml(f)}</div>
             `).join('')}
             ${!hasAnyDesignFile && (design.designFilesExtra || []).length === 0 ? '<div class="muted" style="margin-bottom:12px">No file uploaded yet</div>' : ''}
 
@@ -607,13 +623,17 @@ export async function renderDesignDetail(id) {
     const dims = await getImageDimensions(file).catch(() => null);
     let uploaded;
     try {
-      uploaded = await uploadFile(file, 'design-files');
+      // Design files (not mockups) go to Google Drive instead of Supabase Storage —
+      // these tend to be large print-ready exports and were the main driver of
+      // Supabase's storage/egress quota getting exceeded.
+      uploaded = await uploadFileToDrive(file);
     } catch (err) {
       toast(`Lỗi upload file: ${err.message}`);
       return;
     }
     const slot = {
-      id: uid(), name: file.name, size: file.size, type: file.type, dataUrl: uploaded.url, path: uploaded.path,
+      id: uid(), name: file.name, size: file.size, type: file.type, dataUrl: uploaded.url, path: uploaded.id,
+      provider: 'drive', viewUrl: uploaded.viewUrl,
       width: dims?.width, height: dims?.height, uploadedAt: Date.now(),
     };
     let label;

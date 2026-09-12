@@ -7,6 +7,7 @@ import { renderDesignDetail } from './views/designDetail.js';
 import { renderColors } from './views/colors.js';
 import { renderPeople } from './views/people.js';
 import { renderAccounts } from './views/accounts.js';
+import { renderMigrateDrive } from './views/migrateDrive.js';
 import { openUploadDesignModal } from './views/uploadDesign.js';
 import { renderLogin } from './views/login.js';
 import { getSessionAndProfile, signOut } from './lib/auth.js';
@@ -80,6 +81,7 @@ function registerRoutes() {
   route('/sellers', async () => { await renderPeople('sellers'); updateSidebarActive(); });
   route('/designers', async () => { await renderPeople('designers'); updateSidebarActive(); });
   route('/accounts', async () => { await renderAccounts(); updateSidebarActive(); });
+  route('/migrate-drive', async () => { await renderMigrateDrive(); updateSidebarActive(); });
 }
 
 async function boot() {
@@ -102,6 +104,7 @@ async function boot() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'grid';
   document.getElementById('nav-accounts').style.display = profile.role === 'admin' ? '' : 'none';
+  document.getElementById('nav-migrate-drive').style.display = profile.role === 'admin' ? '' : 'none';
   renderUserFooter();
 
   await seedIfEmpty();

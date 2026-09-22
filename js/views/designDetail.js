@@ -1,6 +1,6 @@
 import { DB, uid } from '../lib/db.js';
 import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
-import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard, downloadFile } from '../lib/utils.js';
+import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard, downloadFile, fileOpenUrl } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { uploadFile } from '../lib/storage.js';
@@ -63,7 +63,7 @@ export async function renderDesignDetail(id) {
     const isImage = /^image\//.test(slot.type || '') || slot.dataUrl?.startsWith('data:image');
     const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : fmtBytes(slot.size);
     const isDrive = slot.provider === 'drive';
-    const openHref = isDrive ? slot.viewUrl : slot.dataUrl;
+    const openHref = fileOpenUrl(slot);
     const previewSrc = thumbUrl(slot.dataUrl, { width: 300, height: 300 });
     const bgId = `tb-${slot.id || Math.random().toString(36).slice(2)}`;
     return `

@@ -61,6 +61,16 @@ export function pastelColorFor(key) {
   return { bg: `hsl(${hue}, 70%, 90%)`, fg: `hsl(${hue}, 45%, 32%)` };
 }
 
+// The URL to send people to when they click through on a design/mockup asset
+// card ("Mở link gốc"). For Drive-hosted files, `dataUrl` is a downscaled
+// preview thumbnail (fast to load, capped ~1000px) — the real, full-quality
+// file lives behind `viewUrl` (Drive's own page) instead. Non-Drive assets
+// only ever had one URL, so `dataUrl` already is the original.
+export function fileOpenUrl(slot) {
+  if (!slot) return '';
+  return slot.provider === 'drive' ? slot.viewUrl : slot.dataUrl;
+}
+
 export function initials(name) {
   return String(name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }

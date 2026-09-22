@@ -1,6 +1,6 @@
 import { DB } from '../lib/db.js';
 import { STATUS_FLOW } from '../lib/seed.js';
-import { fmtDate, escapeHtml, toast, pastelColorFor } from '../lib/utils.js';
+import { fmtDate, escapeHtml, toast, pastelColorFor, fileOpenUrl } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 import { thumbUrl } from '../lib/imageTransform.js';
 
@@ -123,11 +123,13 @@ export async function renderDashboard() {
         <tbody>
           ${recent.map((d) => {
             const mockupUrl = d.mockupFront?.dataUrl || d.mockupBack?.dataUrl || d.mockupExtra?.[0]?.dataUrl || '';
-            const designUrl = d.designFileFront?.dataUrl || d.designFileBack?.dataUrl || d.designFilesExtra?.[0]?.dataUrl || '';
+            const designSlot = d.designFileFront || d.designFileBack || d.designFilesExtra?.[0] || null;
+            const designUrl = designSlot?.dataUrl || '';
+            const designOpenUrl = fileOpenUrl(designSlot);
             return `
             <tr data-goto="${d.id}">
               <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(mockupUrl)}" data-fallback="${mockupUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
-              <td>${designUrl ? `<a href="${designUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(designUrl)}" data-fallback="${designUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+              <td>${designUrl ? `<a href="${designOpenUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(designUrl)}" data-fallback="${designUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
               <td>
                 <div class="design-name-cell boxed-cell">
                   <div>

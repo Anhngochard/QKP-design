@@ -79,6 +79,7 @@ export async function renderDesignDetail(id) {
         <div class="info">
           <div class="fname" title="${escapeHtml(slot.name)}">${escapeHtml(slot.name)}</div>
           <div class="dims">${dims}</div>
+          ${isImage ? `<div style="font-size:10.5px;color:var(--muted,#888)" title="Ảnh xem trước đã nén để tải trang nhanh hơn — file gốc trên Drive/Storage không bị ảnh hưởng">🔍 Ảnh xem trước (đã nén) — bấm ⬇️ để tải file gốc</div>` : ''}
           <div class="actions-row">
             <span class="muted">${label}</span>
             <button class="link-btn btn-danger" data-file-remove="${side}" type="button" style="margin-left:auto">Remove</button>

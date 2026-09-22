@@ -480,6 +480,12 @@ select.field, .filters select {
 }
 .asset-card .thumb-wrap a { display: block; width: 100%; height: 100%; }
 .asset-card .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Used instead of <img> for the design-file preview: a background-image div
+   has no "Save image as…" / "Open image in new tab" entry in the browser's
+   right-click menu, so there's no way to grab the compressed preview file
+   directly — every click/right-click on it only ever reaches the wrapping
+   <a> (which points at the real, full-quality file). */
+.asset-card .thumb-wrap .thumb-bg { width: 100%; height: 100%; background-size: cover; background-position: center; }
 .asset-card .thumb-wrap .file-icon { font-size: 34px; }
 .asset-card .copy-icon-btn {
   position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 6px;

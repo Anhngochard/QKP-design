@@ -64,11 +64,16 @@ export async function renderDesignDetail(id) {
     const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : fmtBytes(slot.size);
     const isDrive = slot.provider === 'drive';
     const openHref = isDrive ? slot.viewUrl : slot.dataUrl;
+    const previewSrc = thumbUrl(slot.dataUrl, { width: 300, height: 300 });
+    const bgId = `tb-${slot.id || Math.random().toString(36).slice(2)}`;
     return `
       <div class="asset-card">
         <div class="thumb-wrap">
-          <a href="${openHref}" target="_blank" rel="noopener" title="Mở link gốc">
-            ${isImage ? `<img src="${thumbUrl(slot.dataUrl, { width: 300, height: 300 })}" data-fallback="${slot.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />` : `<span class="file-icon">📄</span>`}
+          <a href="${openHref}" target="_blank" rel="noopener" title="Mở link gốc (file đầy đủ trên Drive/Storage)">
+            ${isImage
+              ? `<div class="thumb-bg" id="${bgId}"></div>
+                 <img src="${previewSrc}" data-fallback="${slot.dataUrl}" data-thumb-target="${bgId}" decoding="async" style="display:none" onerror="window.__thumbFallback(this)" onload="window.__thumbToBg(this)" />`
+              : `<span class="file-icon">📄</span>`}
           </a>
           <button type="button" class="copy-icon-btn" data-copy-link="${escapeHtml(openHref)}" title="Copy link">🔗</button>
           ${isDrive

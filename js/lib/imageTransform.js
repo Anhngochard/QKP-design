@@ -24,3 +24,18 @@ if (typeof window !== 'undefined' && !window.__thumbFallback) {
     }
   };
 }
+
+// Paints a loaded <img>'s src onto a background-image div instead (see
+// designDetail.js `designFileSlotHtml`) — used so the on-page design-file
+// preview has no "Save image as…" / "Open image in new tab" of its own to
+// right-click: there's no visible <img>, only a div background, so every
+// click/right-click on the preview only ever reaches the wrapping <a> (the
+// real full-quality file), never the compressed preview resource directly.
+// Wire up via: data-thumb-target="<id of the bg div>" onload="window.__thumbToBg(this)"
+if (typeof window !== 'undefined' && !window.__thumbToBg) {
+  window.__thumbToBg = function thumbToBg(img) {
+    const targetId = img.dataset.thumbTarget;
+    const target = targetId && document.getElementById(targetId);
+    if (target) target.style.backgroundImage = `url("${img.src}")`;
+  };
+}

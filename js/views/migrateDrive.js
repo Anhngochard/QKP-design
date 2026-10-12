@@ -1,7 +1,8 @@
-// One-off admin tool: moves existing Design File uploads (Front/Back/More —
-// NOT mockups) that still live in Supabase Storage over to Google Drive, the
-// same way new uploads already work (see designDetail.js `handleDesignFile`).
-// Two separate steps on purpose:
+// One-off admin tool: moves existing Design File AND Mockup uploads that
+// still live in Supabase Storage over to Google Drive, the same way new
+// uploads already work (see designDetail.js `handleDesignFile` /
+// `handleMockupFrontBack` / `handleMockupExtra`). Two separate steps on
+// purpose:
 //   1. Copy every old file to Drive and repoint the design's record at it.
 //   2. (Only after you've checked everything still opens fine) delete the old
 //      Supabase Storage objects to actually reclaim quota.
@@ -12,24 +13,34 @@ import { uploadFileToDrive } from '../lib/googleDrive.js';
 import { supabase } from '../lib/supabase.js';
 
 const STORAGE_BUCKET = 'design-assets';
-const STORAGE_FOLDER = 'design-files'; // old design-file uploads only — mockups live under other folders
+const STORAGE_FOLDERS = ['design-files', 'mockups']; // every folder old uploads could still be sitting in
 
 function pushHistory(design, text) {
   design.history = design.history || [];
   design.history.push({ ts: Date.now(), text });
 }
 
-// Every design-file slot on a design, as {design, key, slot, apply(newSlot)}.
+// Every uploaded-file slot on a design (design files AND mockups), as
+// {label, slot, apply(newSlot)}.
 function collectSlots(design) {
   const slots = [];
   if (design.designFileFront) {
-    slots.push({ label: 'Front', slot: design.designFileFront, apply: (s) => { design.designFileFront = s; } });
+    slots.push({ label: 'Design Front', slot: design.designFileFront, apply: (s) => { design.designFileFront = s; } });
   }
   if (design.designFileBack) {
-    slots.push({ label: 'Back', slot: design.designFileBack, apply: (s) => { design.designFileBack = s; } });
+    slots.push({ label: 'Design Back', slot: design.designFileBack, apply: (s) => { design.designFileBack = s; } });
   }
   (design.designFilesExtra || []).forEach((f, i) => {
-    slots.push({ label: `More #${i + 1}`, slot: f, apply: (s) => { design.designFilesExtra[i] = s; } });
+    slots.push({ label: `Design More #${i + 1}`, slot: f, apply: (s) => { design.designFilesExtra[i] = s; } });
+  });
+  if (design.mockupFront) {
+    slots.push({ label: 'Mockup Front', slot: design.mockupFront, apply: (s) => { design.mockupFront = s; } });
+  }
+  if (design.mockupBack) {
+    slots.push({ label: 'Mockup Back', slot: design.mockupBack, apply: (s) => { design.mockupBack = s; } });
+  }
+  (design.mockupExtra || []).forEach((m, i) => {
+    slots.push({ label: `Mockup More #${i + 1}`, slot: m, apply: (s) => { design.mockupExtra[i] = s; } });
   });
   return slots;
 }
@@ -67,12 +78,12 @@ export async function renderMigrateDrive() {
     root.innerHTML = `
       <div class="page-header">
         <div>
-          <h2>Chuyển Design File cũ sang Google Drive</h2>
-          <div class="breadcrumb">Chỉ Design File (Front/Back/More) — Mockup và dữ liệu khác giữ nguyên trên Supabase</div>
+          <h2>Chuyển Design File & Mockup cũ sang Google Drive</h2>
+          <div class="breadcrumb">Toàn bộ file ảnh/thiết kế — chỉ dữ liệu text (tên, trạng thái, ghi chú...) giữ nguyên trên Supabase</div>
         </div>
       </div>
       <div class="card" style="max-width:800px">
-        <p>Tìm thấy <strong>${pending.length}</strong> file thiết kế đang còn lưu trên Supabase Storage, chưa nằm trên Google Drive.</p>
+        <p>Tìm thấy <strong>${pending.length}</strong> file (design file + mockup) đang còn lưu trên Supabase Storage, chưa nằm trên Google Drive.</p>
         <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap">
           <button class="btn btn-primary" id="btn-start" ${pending.length === 0 || running ? 'disabled' : ''}>
             🚀 Bắt đầu chuyển ${pending.length} file
@@ -116,14 +127,13 @@ export async function renderMigrateDrive() {
     if (el) el.textContent = text;
   }
 
-  async function migrateOne(item, index, total) {
+  async function migrateOne(item) {
     const { design, label, slot, apply } = item;
-    setProgress(`Đang xử lý ${index + 1}/${total}: "${design.name}" — ${label}`);
     try {
       const res = await fetch(slot.dataUrl);
       if (!res.ok) throw new Error(`Tải file gốc thất bại (HTTP ${res.status})`);
       const blob = await res.blob();
-      const file = new File([blob], slot.name || 'design-file', { type: slot.type || blob.type });
+      const file = new File([blob], slot.name || 'file', { type: slot.type || blob.type });
       const uploaded = await uploadFileToDrive(file);
       apply({
         ...slot,
@@ -132,7 +142,7 @@ export async function renderMigrateDrive() {
         provider: 'drive',
         viewUrl: uploaded.viewUrl,
       });
-      pushHistory(design, `${label} design file migrated to Google Drive.`);
+      pushHistory(design, `${label} migrated to Google Drive.`);
       await DB.put('designs', design);
       log(`✅ "${design.name}" — ${label}: OK`);
     } catch (err) {
@@ -140,39 +150,56 @@ export async function renderMigrateDrive() {
     }
   }
 
+  // Runs up to CONCURRENCY uploads at once (plain sequential would take
+  // hours for several thousand mockups) — a handful of simultaneous workers
+  // pulling off the same shared queue, well under Google Drive's per-user
+  // rate limits.
+  const CONCURRENCY = 5;
+
   async function start() {
     running = true;
     cancelled = false;
     draw();
-    for (let i = 0; i < pending.length; i++) {
-      if (cancelled) { log('⏸️ Đã dừng theo yêu cầu.'); break; }
-      await migrateOne(pending[i], i, pending.length);
+    let next = 0;
+    let done = 0;
+    async function worker() {
+      for (;;) {
+        if (cancelled) return;
+        const i = next++;
+        if (i >= pending.length) return;
+        await migrateOne(pending[i]);
+        done++;
+        setProgress(`Đang xử lý ${done}/${pending.length}…`);
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker));
     running = false;
     setProgress(cancelled ? 'Đã dừng.' : `Hoàn tất: ${pending.length} file đã xử lý.`);
     draw();
     toast('Đã xử lý xong đợt chuyển file.');
   }
 
-  // Lists every object still sitting under STORAGE_FOLDER in Supabase Storage.
-  // Safe to treat all of them as orphaned/deletable *only* when `pending` is
-  // empty — i.e. every design-file slot in the database has already been
-  // repointed at Drive, so nothing in the app references a design-files/...
-  // path anymore (mockups live under separate folders and are untouched).
+  // Lists every object still sitting under STORAGE_FOLDERS in Supabase
+  // Storage. Safe to treat all of them as orphaned/deletable *only* when
+  // `pending` is empty — i.e. every design-file AND mockup slot in the
+  // database has already been repointed at Drive, so nothing in the app
+  // references a design-files/... or mockups/... path anymore.
   async function scanLeftover() {
     scanning = true;
     draw();
     const found = [];
-    let offset = 0;
-    const PAGE = 100;
-    for (;;) {
-      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(STORAGE_FOLDER, {
-        limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' },
-      });
-      if (error) { log(`❌ Lỗi quét Storage: ${error.message}`); break; }
-      (data || []).filter((f) => f.id).forEach((f) => found.push(`${STORAGE_FOLDER}/${f.name}`));
-      if (!data || data.length < PAGE) break;
-      offset += PAGE;
+    for (const folder of STORAGE_FOLDERS) {
+      let offset = 0;
+      const PAGE = 100;
+      for (;;) {
+        const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(folder, {
+          limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' },
+        });
+        if (error) { log(`❌ Lỗi quét ${folder}/: ${error.message}`); break; }
+        (data || []).filter((f) => f.id).forEach((f) => found.push(`${folder}/${f.name}`));
+        if (!data || data.length < PAGE) break;
+        offset += PAGE;
+      }
     }
     deletablePaths = found;
     scanned = true;

@@ -4,7 +4,7 @@ import { escapeHtml, toast, toDateInputValue, getImageDimensions } from '../lib/
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
 import { computeImageHash, hammingDistanceHex, DUPLICATE_THRESHOLD } from '../lib/imageHash.js';
-import { uploadFile } from '../lib/storage.js';
+import { uploadFileToDrive } from '../lib/googleDrive.js';
 import { getCurrentProfile } from '../lib/session.js';
 import { detectDominantColor, nearestNamedColor, colorDistance, loadImageFromFile } from '../lib/colorDetect.js';
 import { thumbUrl } from '../lib/imageTransform.js';
@@ -284,13 +284,16 @@ export async function openUploadDesignModal() {
     const dims = await getImageDimensions(file).catch(() => null);
     let uploaded;
     try {
-      uploaded = await uploadFile(file, 'mockups');
+      uploaded = await uploadFileToDrive(file);
     } catch (err) {
       toast(`Lỗi upload ảnh: ${err.message}`);
       return;
     }
 
-    const slot = { dataUrl: uploaded.url, path: uploaded.path, hash, name: file.name, width: dims?.width, height: dims?.height };
+    const slot = {
+      dataUrl: uploaded.url, path: uploaded.id, provider: 'drive', viewUrl: uploaded.viewUrl,
+      hash, name: file.name, type: file.type, size: file.size, width: dims?.width, height: dims?.height,
+    };
     if (side === 'front') mockupFront = slot; else mockupBack = slot;
     rerenderSlots();
 
@@ -339,14 +342,15 @@ export async function openUploadDesignModal() {
       const dims = await getImageDimensions(file).catch(() => null);
       let uploaded;
       try {
-        uploaded = await uploadFile(file, 'mockups');
+        uploaded = await uploadFileToDrive(file);
       } catch (err) {
         toast(`Lỗi upload ảnh: ${err.message}`);
         continue;
       }
       mockupExtra.push({
         id: uid(), label: labels[mockupExtra.length] || `Image ${mockupExtra.length + 1}`,
-        dataUrl: uploaded.url, path: uploaded.path, name: file.name, width: dims?.width, height: dims?.height,
+        dataUrl: uploaded.url, path: uploaded.id, provider: 'drive', viewUrl: uploaded.viewUrl,
+        name: file.name, type: file.type, size: file.size, width: dims?.width, height: dims?.height,
       });
     }
     rerenderExtra();

@@ -3,7 +3,6 @@ import { STATUS_FLOW, PRIORITIES } from '../lib/seed.js';
 import { fmtDate, fmtDateTime, escapeHtml, fmtBytes, toast, toDateInputValue, getImageDimensions, copyToClipboard, downloadFile, fileOpenUrl } from '../lib/utils.js';
 import { navigate } from '../lib/router.js';
 import { openModal, closeModal } from '../lib/modal.js';
-import { uploadFile } from '../lib/storage.js';
 import { uploadFileToDrive } from '../lib/googleDrive.js';
 import { getShortLink } from '../lib/shortlink.js';
 import { detectDominantColor, nearestNamedColor, loadImageFromFile } from '../lib/colorDetect.js';
@@ -48,20 +47,17 @@ export async function renderDesignDetail(id) {
     }).join('');
   }
 
-  function designFileSlotHtml(side, label, slot) {
-    if (!slot) {
-      return `
-        <div class="dropzone" data-file-drop="${side}" style="padding:20px 10px">
-          <div class="icon" style="font-size:22px">⬆️</div>
-          <div style="font-size:12.5px;font-weight:600">${label}</div>
-          <div style="font-size:11px;margin-top:2px">Choose or drop file</div>
-          <div style="font-size:10.5px;margin-top:2px">PNG / PSD / AI / PDF / SVG (Max 100MB)</div>
-          <input type="file" data-file-input="${side}" style="display:none" accept=".png,.psd,.ai,.pdf,.svg,image/*" />
-        </div>
-      `;
-    }
-    const isImage = /^image\//.test(slot.type || '') || slot.dataUrl?.startsWith('data:image');
-    const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : fmtBytes(slot.size);
+  // Shared card markup for any uploaded asset (design file or mockup) that
+  // lives either on Supabase Storage or Google Drive. The preview is a
+  // background-image div fed by a hidden helper <img> rather than a real
+  // <img> — browsers don't offer "Save image as…" on a div background, so
+  // every click/right-click on the preview only ever reaches the wrapping
+  // <a> (the real, full-quality file via fileOpenUrl), never the downscaled
+  // preview resource directly.
+  function assetCardHtml(slot, { fallbackName, removeAttr, metaLabel } = {}) {
+    const name = slot.name || fallbackName;
+    const isImage = /^image\//.test(slot.type || '') || slot.dataUrl?.startsWith('data:image') || !slot.type;
+    const dims = slot.width && slot.height ? `${slot.width} x ${slot.height}` : (slot.size ? fmtBytes(slot.size) : '');
     const isDrive = slot.provider === 'drive';
     const openHref = fileOpenUrl(slot);
     const previewSrc = thumbUrl(slot.dataUrl, { width: 300, height: 300 });
@@ -78,20 +74,35 @@ export async function renderDesignDetail(id) {
           <button type="button" class="copy-icon-btn" data-copy-link="${escapeHtml(openHref)}" title="Copy link">🔗</button>
           ${isDrive
             ? `<a class="copy-icon-btn" href="${slot.viewUrl}" target="_blank" rel="noopener" style="right:40px;text-decoration:none" title="Mở trên Drive để tải (đúng tên file)">⬇️</a>`
-            : `<button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(slot.dataUrl)}" data-download-name="${escapeHtml(slot.name)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>`
+            : `<button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(slot.dataUrl)}" data-download-name="${escapeHtml(name)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>`
           }
         </div>
         <div class="info">
-          <div class="fname" title="${escapeHtml(slot.name)}">${escapeHtml(slot.name)}</div>
-          <div class="dims">${dims}</div>
+          <div class="fname" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+          ${dims ? `<div class="dims">${dims}</div>` : ''}
           ${isImage ? `<div style="font-size:10.5px;color:var(--muted,#888)" title="Ảnh xem trước đã nén để tải trang nhanh hơn — file gốc trên Drive/Storage không bị ảnh hưởng">🔍 Ảnh xem trước (đã nén) — bấm ⬇️ để tải file gốc</div>` : ''}
           <div class="actions-row">
-            <span class="muted">${label}</span>
-            <button class="link-btn btn-danger" data-file-remove="${side}" type="button" style="margin-left:auto">Remove</button>
+            ${metaLabel ? `<span class="muted">${metaLabel}</span>` : ''}
+            <button class="link-btn btn-danger" ${removeAttr} type="button" style="margin-left:auto">Remove</button>
           </div>
         </div>
       </div>
     `;
+  }
+
+  function designFileSlotHtml(side, label, slot) {
+    if (!slot) {
+      return `
+        <div class="dropzone" data-file-drop="${side}" style="padding:20px 10px">
+          <div class="icon" style="font-size:22px">⬆️</div>
+          <div style="font-size:12.5px;font-weight:600">${label}</div>
+          <div style="font-size:11px;margin-top:2px">Choose or drop file</div>
+          <div style="font-size:10.5px;margin-top:2px">PNG / PSD / AI / PDF / SVG (Max 100MB)</div>
+          <input type="file" data-file-input="${side}" style="display:none" accept=".png,.psd,.ai,.pdf,.svg,image/*" />
+        </div>
+      `;
+    }
+    return assetCardHtml(slot, { fallbackName: label, removeAttr: `data-file-remove="${side}"`, metaLabel: label });
   }
 
   function downloadBtnHtml(url, filename) {
@@ -119,43 +130,11 @@ export async function renderDesignDetail(id) {
         </div>
       `;
     }
-    const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
-    return `
-      <div class="asset-card">
-        <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
-            <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" data-fallback="${mockup.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />
-          </a>
-          <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
-          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(mockup.dataUrl)}" data-download-name="${escapeHtml(mockup.name || fallbackLabel)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
-        </div>
-        <div class="info">
-          <div class="fname" title="${escapeHtml(mockup.name || fallbackLabel)}">${escapeHtml(mockup.name || fallbackLabel)}</div>
-          ${dims ? `<div class="dims">${dims}</div>` : ''}
-          <button class="link-btn btn-danger" data-mockup-remove="${side}" type="button" style="margin-top:4px">Remove</button>
-        </div>
-      </div>
-    `;
+    return assetCardHtml(mockup, { fallbackName: fallbackLabel, removeAttr: `data-mockup-remove="${side}"` });
   }
 
   function mockupExtraCardHtml(mockup, index) {
-    const dims = mockup.width && mockup.height ? `${mockup.width} x ${mockup.height}` : '';
-    return `
-      <div class="asset-card">
-        <div class="thumb-wrap">
-          <a href="${mockup.dataUrl}" target="_blank" rel="noopener" title="Mở link gốc">
-            <img src="${thumbUrl(mockup.dataUrl, { width: 300, height: 300 })}" data-fallback="${mockup.dataUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" />
-          </a>
-          <button type="button" class="copy-icon-btn" data-copy-link="${mockup.dataUrl}" title="Copy link">🔗</button>
-          <button type="button" class="copy-icon-btn" data-download-url="${escapeHtml(mockup.dataUrl)}" data-download-name="${escapeHtml(mockup.name || `More #${index + 1}`)}" style="right:40px" title="Tải xuống (đúng tên file)">⬇️</button>
-        </div>
-        <div class="info">
-          <div class="fname" title="${escapeHtml(mockup.name || `More #${index + 1}`)}">${escapeHtml(mockup.name || `More #${index + 1}`)}</div>
-          ${dims ? `<div class="dims">${dims}</div>` : ''}
-          <button class="link-btn btn-danger" data-mockup-extra-remove="${index}" type="button" style="margin-top:4px">Remove</button>
-        </div>
-      </div>
-    `;
+    return assetCardHtml(mockup, { fallbackName: `More #${index + 1}`, removeAttr: `data-mockup-extra-remove="${index}"` });
   }
 
   function mockupAddMoreTileHtml() {
@@ -678,12 +657,15 @@ export async function renderDesignDetail(id) {
     const dims = await getImageDimensions(file).catch(() => null);
     let uploaded;
     try {
-      uploaded = await uploadFile(file, 'mockups');
+      uploaded = await uploadFileToDrive(file);
     } catch (err) {
       toast(`Lỗi upload ảnh: ${err.message}`);
       return;
     }
-    const slot = { id: uid(), name: file.name, dataUrl: uploaded.url, path: uploaded.path, width: dims?.width, height: dims?.height };
+    const slot = {
+      id: uid(), name: file.name, type: file.type, size: file.size, dataUrl: uploaded.url, path: uploaded.id,
+      provider: 'drive', viewUrl: uploaded.viewUrl, width: dims?.width, height: dims?.height,
+    };
     if (side === 'front') design.mockupFront = slot; else design.mockupBack = slot;
     try {
       await persist(`${side === 'front' ? 'Front' : 'Back'} mockup uploaded: ${file.name}`);
@@ -702,14 +684,15 @@ export async function renderDesignDetail(id) {
     const dims = await getImageDimensions(file).catch(() => null);
     let uploaded;
     try {
-      uploaded = await uploadFile(file, 'mockups');
+      uploaded = await uploadFileToDrive(file);
     } catch (err) {
       toast(`Lỗi upload ảnh: ${err.message}`);
       return;
     }
     design.mockupExtra = design.mockupExtra || [];
     design.mockupExtra.push({
-      id: uid(), name: file.name, dataUrl: uploaded.url, path: uploaded.path, width: dims?.width, height: dims?.height,
+      id: uid(), name: file.name, type: file.type, size: file.size, dataUrl: uploaded.url, path: uploaded.id,
+      provider: 'drive', viewUrl: uploaded.viewUrl, width: dims?.width, height: dims?.height,
     });
     try {
       await persist(`Added mockup image #${design.mockupExtra.length}: ${file.name}`);

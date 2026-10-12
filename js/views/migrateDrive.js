@@ -12,6 +12,7 @@ import { uploadFileToDrive } from '../lib/googleDrive.js';
 import { supabase } from '../lib/supabase.js';
 
 const STORAGE_BUCKET = 'design-assets';
+const STORAGE_FOLDER = 'design-files'; // old design-file uploads only — mockups live under other folders
 
 function pushHistory(design, text) {
   design.history = design.history || [];
@@ -49,13 +50,20 @@ export async function renderMigrateDrive() {
     });
   });
 
-  // Paths queued for deletion once the user explicitly asks for cleanup —
-  // kept in memory only (not persisted) so a reload always starts fresh/safe.
+  // Paths queued for deletion once the user explicitly asks for cleanup. Not
+  // persisted across reloads by itself — but since migrated slots always
+  // repoint at Drive, anything still sitting in Storage under STORAGE_FOLDER
+  // once `pending` is empty is provably orphaned, so `scanLeftover()` can
+  // always rebuild this list from Storage directly (e.g. after the migration
+  // ran in an earlier session and the page was since reloaded).
   let deletablePaths = [];
+  let scanned = false;
+  let scanning = false;
   let running = false;
   let cancelled = false;
 
   function draw() {
+    const canCleanup = pending.length === 0;
     root.innerHTML = `
       <div class="page-header">
         <div>
@@ -70,16 +78,29 @@ export async function renderMigrateDrive() {
             🚀 Bắt đầu chuyển ${pending.length} file
           </button>
           <button class="btn" id="btn-cancel" style="display:${running ? '' : 'none'}">Dừng lại</button>
-          <button class="btn btn-danger" id="btn-cleanup" style="display:${deletablePaths.length ? '' : 'none'}">
-            🗑️ Xoá ${deletablePaths.length} file cũ trên Supabase (giải phóng dung lượng)
-          </button>
         </div>
-        <div id="progress" style="font-weight:600;margin-bottom:8px"></div>
+        ${canCleanup ? `
+          <div style="border-top:1px solid var(--border,#eee);padding-top:14px;margin-top:4px">
+            <p style="margin:0 0 10px">
+              ${scanning ? 'Đang quét file cũ còn sót trên Supabase…'
+                : scanned ? `Tìm thấy <strong>${deletablePaths.length}</strong> file cũ không còn được dùng tới (đã chuyển hết sang Drive) — xoá để giải phóng dung lượng Storage.`
+                : 'Bấm để quét file cũ không còn được dùng tới trên Supabase.'}
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn" id="btn-scan" ${scanning ? 'disabled' : ''}>🔍 Quét file cũ còn sót</button>
+              <button class="btn btn-danger" id="btn-cleanup" style="display:${scanned && deletablePaths.length ? '' : 'none'}">
+                🗑️ Xoá ${deletablePaths.length} file cũ trên Supabase (giải phóng dung lượng)
+              </button>
+            </div>
+          </div>
+        ` : `<p style="color:var(--muted,#888);font-size:.9em">Chuyển hết ${pending.length} file ở trên trước đã, rồi mới quét/xoá được file cũ.</p>`}
+        <div id="progress" style="font-weight:600;margin:12px 0 8px"></div>
         <pre id="log" style="background:#111;color:#ddd;padding:12px;border-radius:8px;max-height:400px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
       </div>
     `;
     document.getElementById('btn-start')?.addEventListener('click', start);
     document.getElementById('btn-cancel')?.addEventListener('click', () => { cancelled = true; });
+    document.getElementById('btn-scan')?.addEventListener('click', scanLeftover);
     document.getElementById('btn-cleanup')?.addEventListener('click', cleanup);
   }
 
@@ -104,7 +125,6 @@ export async function renderMigrateDrive() {
       const blob = await res.blob();
       const file = new File([blob], slot.name || 'design-file', { type: slot.type || blob.type });
       const uploaded = await uploadFileToDrive(file);
-      const oldPath = slot.provider !== 'drive' ? slot.path : null;
       apply({
         ...slot,
         dataUrl: uploaded.url,
@@ -114,7 +134,6 @@ export async function renderMigrateDrive() {
       });
       pushHistory(design, `${label} design file migrated to Google Drive.`);
       await DB.put('designs', design);
-      if (oldPath) deletablePaths.push(oldPath);
       log(`✅ "${design.name}" — ${label}: OK`);
     } catch (err) {
       log(`❌ "${design.name}" — ${label}: ${err.message}`);
@@ -135,6 +154,32 @@ export async function renderMigrateDrive() {
     toast('Đã xử lý xong đợt chuyển file.');
   }
 
+  // Lists every object still sitting under STORAGE_FOLDER in Supabase Storage.
+  // Safe to treat all of them as orphaned/deletable *only* when `pending` is
+  // empty — i.e. every design-file slot in the database has already been
+  // repointed at Drive, so nothing in the app references a design-files/...
+  // path anymore (mockups live under separate folders and are untouched).
+  async function scanLeftover() {
+    scanning = true;
+    draw();
+    const found = [];
+    let offset = 0;
+    const PAGE = 100;
+    for (;;) {
+      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(STORAGE_FOLDER, {
+        limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' },
+      });
+      if (error) { log(`❌ Lỗi quét Storage: ${error.message}`); break; }
+      (data || []).filter((f) => f.id).forEach((f) => found.push(`${STORAGE_FOLDER}/${f.name}`));
+      if (!data || data.length < PAGE) break;
+      offset += PAGE;
+    }
+    deletablePaths = found;
+    scanned = true;
+    scanning = false;
+    draw();
+  }
+
   async function cleanup() {
     if (!deletablePaths.length) return;
     const ok = window.confirm(
@@ -152,6 +197,7 @@ export async function renderMigrateDrive() {
       log(`🗑️ Đã xoá ${removed}/${deletablePaths.length} file cũ.`);
     }
     deletablePaths = [];
+    scanned = false;
     toast('Đã xoá file cũ trên Supabase.');
     draw();
   }

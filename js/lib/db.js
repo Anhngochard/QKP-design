@@ -72,22 +72,78 @@ function designToRow(design) {
 // comes back short, then concatenate.
 const PAGE_SIZE = 1000;
 
+async function fetchAll(table) {
+  let all = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    all = all.concat(data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return table === 'designs' ? all.map(rowToDesign) : all;
+}
+
+// Downloading a whole table is the app's biggest source of Supabase egress: the
+// sidebar counts, the seed check and every view each used to call getAll('designs')
+// on their own, so one click re-downloaded the full table (1000+ rows with their
+// history) two or three times. That is what pushed the project over its egress
+// quota. getAll() now keeps each table in memory for a short while:
+//  - calls made while a download is already running share that one download;
+//  - calls within CACHE_TTL_MS of the last download reuse it;
+//  - put()/delete() update the cached copy in place, so your own changes show
+//    immediately without downloading the table again.
+// Changes made by other people show up after at most CACHE_TTL_MS, or right away
+// on a page reload. Pass { fresh: true } to force a new download.
+const CACHE_TTL_MS = 60_000;
+const cache = new Map(); // table -> { at, rows, promise }
+
+// Callers get their own copy, so editing a record before (or without) saving it
+// never changes what the next caller sees.
+const copy = (rows) => structuredClone(rows);
+
+function patchCache(table, apply) {
+  const entry = cache.get(table);
+  if (!entry) return;
+  // A download is in flight and may or may not include this write: drop it from
+  // the cache so the next getAll() downloads again instead of guessing.
+  if (entry.promise) cache.delete(table);
+  else apply(entry.rows);
+}
+
 export const DB = {
-  async getAll(table) {
-    let all = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .order('created_at', { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) throw error;
-      all = all.concat(data);
-      if (data.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+  async getAll(table, { fresh = false } = {}) {
+    const hit = cache.get(table);
+    if (hit && !fresh) {
+      if (hit.promise) return copy(await hit.promise);
+      if (Date.now() - hit.at < CACHE_TTL_MS) return copy(hit.rows);
     }
-    return table === 'designs' ? all.map(rowToDesign) : all;
+    const entry = { at: 0, rows: null, promise: null };
+    entry.promise = fetchAll(table).then(
+      (rows) => {
+        entry.rows = rows;
+        entry.at = Date.now();
+        entry.promise = null;
+        return rows;
+      },
+      (error) => {
+        if (cache.get(table) === entry) cache.delete(table);
+        throw error;
+      },
+    );
+    cache.set(table, entry);
+    return copy(await entry.promise);
+  },
+
+  // Forget the cached copy of one table (or of every table).
+  invalidate(table) {
+    if (table) cache.delete(table);
+    else cache.clear();
   },
 
   async get(table, id) {
@@ -102,11 +158,21 @@ export const DB = {
     if (!row.id) row.id = uid();
     const { data, error } = await supabase.from(table).upsert(row).select().single();
     if (error) throw error;
-    return table === 'designs' ? rowToDesign(data) : data;
+    const saved = table === 'designs' ? rowToDesign(data) : data;
+    patchCache(table, (rows) => {
+      const index = rows.findIndex((r) => r.id === saved.id);
+      if (index >= 0) rows[index] = copy(saved);
+      else rows.push(copy(saved)); // new rows are the newest, and the list is oldest-first
+    });
+    return saved;
   },
 
   async delete(table, id) {
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) throw error;
+    patchCache(table, (rows) => {
+      const index = rows.findIndex((r) => r.id === id);
+      if (index >= 0) rows.splice(index, 1);
+    });
   },
 };

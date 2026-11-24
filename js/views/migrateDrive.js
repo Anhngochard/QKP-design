@@ -51,7 +51,8 @@ function needsMigration(slot) {
 
 export async function renderMigrateDrive() {
   const root = document.getElementById('view-root');
-  const designs = await DB.getAll('designs');
+  // Always work from the current state of the table: this tool rewrites file links.
+  const designs = await DB.getAll('designs', { fresh: true });
 
   // Build the work list up front so the count on screen is accurate immediately.
   const pending = [];

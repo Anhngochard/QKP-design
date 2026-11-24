@@ -11,17 +11,55 @@ export function thumbUrl(url, { width = 200, height = 200, quality = 60 } = {}) 
 }
 
 // Supabase refuses to transform source images past a certain size ("source image file
-// is too large to process" — real print-ready exports routinely exceed it). When that
-// happens the <img> should fall back to the original, untransformed file instead of
-// just going blank. Wire this up via: data-fallback="<originalUrl>" onerror="window.__thumbFallback(this)"
+// is too large to process" — real print-ready exports routinely exceed it), and the
+// transformation endpoint is not available on every plan. When the thumbnail fails the
+// <img> falls back to the original, untransformed file instead of just going blank.
+// Wire this up via: data-fallback="<originalUrl>" onerror="window.__thumbFallback(this)"
+//
+// That fallback used to load the original no matter how big it was, so a 200px thumbnail
+// in a list could pull a file of tens of MB out of Supabase Storage every time the list
+// was shown — a major source of the project's egress. An original that lives in Supabase
+// Storage is now only loaded as a thumbnail when it is small: its size is read first with
+// a HEAD request (which downloads no file data). Larger originals leave the thumbnail
+// blank; the link around it still opens the real file. Pass a different limit in bytes as
+// the second argument, e.g. onerror="window.__thumbFallback(this, 300000)" for list rows.
+// Files stored elsewhere (Google Drive, data: URIs) cost no Supabase egress and still
+// fall back as before.
+const SUPABASE_OBJECT_PATH = '/storage/v1/object/';
+const DEFAULT_FALLBACK_MAX_BYTES = 2_000_000;
+
+const fallbackSizes = new Map(); // original URL -> Promise<size in bytes, or null if unknown>
+
+function originalSize(url) {
+  if (!fallbackSizes.has(url)) {
+    fallbackSizes.set(
+      url,
+      fetch(url, { method: 'HEAD' })
+        .then((res) => (res.ok ? Number(res.headers.get('content-length')) || null : null))
+        .catch(() => null),
+    );
+  }
+  return fallbackSizes.get(url);
+}
+
 if (typeof window !== 'undefined' && !window.__thumbFallback) {
-  window.__thumbFallback = function thumbFallback(img) {
+  window.__thumbFallback = async function thumbFallback(img, maxBytes = DEFAULT_FALLBACK_MAX_BYTES) {
     const fallback = img.dataset.fallback;
-    if (fallback && img.src !== fallback) {
-      img.src = fallback;
-    } else {
+    if (!fallback || img.dataset.fallbackTried) {
       img.style.visibility = 'hidden';
+      return;
     }
+    img.dataset.fallbackTried = '1'; // never loop: the original itself may fail to load
+    if (fallback.includes(SUPABASE_OBJECT_PATH)) {
+      const size = await originalSize(fallback);
+      // Unknown size counts as too big: never download blind.
+      if (size === null || size > maxBytes) {
+        img.style.visibility = 'hidden';
+        img.title = 'Không có ảnh xem trước (file gốc quá lớn). Bấm để mở file gốc.';
+        return;
+      }
+    }
+    img.src = fallback;
   };
 }
 

@@ -177,8 +177,8 @@ export async function renderDesignList(query = {}, opts = {}) {
               const designOpenUrl = fileOpenUrl(designSlot);
               return `
               <tr data-goto="${d.id}">
-                <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(mockupUrl)}" data-fallback="${mockupUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
-                <td>${designUrl ? `<a href="${designOpenUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(designUrl)}" data-fallback="${designUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+                <td>${mockupUrl ? `<a href="${mockupUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(mockupUrl)}" data-fallback="${mockupUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this, 300000)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
+                <td>${designUrl ? `<a href="${designOpenUrl}" target="_blank" rel="noopener" data-thumb-link title="Mở link gốc"><img class="thumb" src="${thumbUrl(designUrl)}" data-fallback="${designUrl}" loading="lazy" decoding="async" onerror="window.__thumbFallback(this, 300000)" /></a>` : `<img class="thumb" src="" onerror="this.style.visibility='hidden'" />`}</td>
                 <td>
                   <div class="design-name-cell boxed-cell">
                     <div>

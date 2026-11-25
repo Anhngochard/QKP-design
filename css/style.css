@@ -386,7 +386,7 @@ button { font-family: inherit; }
 }
 .preview-box img { max-height: 160px; border-radius: 8px; }
 
-textarea, input[type=text], input[type=date], input[type=email], select.field {
+textarea, input[type=text], input[type=date], input[type=email], input[type=password], select.field {
   width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
   font-size: 13px; font-family: inherit; background: #fff; color: var(--text);
 }

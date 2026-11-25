@@ -1,4 +1,4 @@
-import { listProfiles, updateProfile, createAccount } from '../lib/auth.js';
+import { listProfiles, updateProfile, createAccount, resetPassword } from '../lib/auth.js';
 import { getCurrentProfile, roleLabel } from '../lib/session.js';
 import { escapeHtml, fmtDateTime, toast } from '../lib/utils.js';
 import { DB } from '../lib/db.js';
@@ -98,7 +98,7 @@ export async function renderAccounts() {
         <table class="table">
           <thead>
             <tr>
-              <th>Tên</th><th>Email</th><th>Vai trò</th><th>Liên kết Seller/Designer</th><th>Trạng thái</th><th>Tạo lúc</th>
+              <th>Tên</th><th>Email</th><th>Vai trò</th><th>Liên kết Seller/Designer</th><th>Trạng thái</th><th>Tạo lúc</th><th>Mật khẩu</th>
             </tr>
           </thead>
           <tbody>
@@ -119,6 +119,7 @@ export async function renderAccounts() {
                   </label>
                 </td>
                 <td>${fmtDateTime(p.created_at ? new Date(p.created_at).getTime() : null)}</td>
+                <td><button type="button" class="btn" data-reset-password="${p.id}" style="padding:6px 10px;font-size:12.5px">Đặt lại</button></td>
               </tr>
             `).join('')}
           </tbody>
@@ -152,6 +153,25 @@ export async function renderAccounts() {
         submitBtn.disabled = false;
         submitBtn.textContent = '+ Tạo tài khoản';
       }
+    });
+
+    root.querySelectorAll('[data-reset-password]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const p = profiles.find((x) => x.id === btn.dataset.resetPassword);
+        const password = prompt(
+          `Mật khẩu mới cho "${p.name || p.email}" (tối thiểu 6 ký tự).\nHãy copy lại để gửi cho họ — sẽ không hiện lại được. Mọi thiết bị của tài khoản này sẽ bị đăng xuất.`,
+          generatePassword(),
+        );
+        if (password === null) return;
+        try {
+          await resetPassword(p.id, password);
+          toast(`Đã đặt lại mật khẩu cho "${p.name || p.email}".`);
+          // Tự đổi mật khẩu của mình thì phiên hiện tại cũng bị huỷ.
+          if (p.id === me.id) location.reload();
+        } catch (err) {
+          toast(`Lỗi: ${err.message}`);
+        }
+      });
     });
 
     root.querySelectorAll('[data-role-select]').forEach((sel) => {

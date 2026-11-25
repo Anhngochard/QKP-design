@@ -1,0 +1,17 @@
+{
+  "name": "qkp-design-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  "vars": {
+    // Trang được phép gọi API (cách nhau bằng dấu phẩy). localhost luôn được phép.
+    "ALLOWED_ORIGINS": "https://anhngochard.github.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qkp-design",
+      "database_id": "c0ca6076-4360-44bd-8afa-9db7e53442a4",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

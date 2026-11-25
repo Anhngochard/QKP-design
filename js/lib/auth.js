@@ -1,62 +1,47 @@
-import { supabase } from './supabase.js';
+import { api, getToken, setToken } from './api.js';
 
 export async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  const data = await api('/auth/login', { method: 'POST', body: { email, password } });
+  setToken(data.token);
   return data;
 }
 
 export async function signOut() {
-  await supabase.auth.signOut();
+  if (getToken()) await api('/auth/logout', { method: 'POST' }).catch(() => {});
+  setToken(null);
 }
 
-export async function fetchProfile(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-// Returns { session, profile } — profile is null if not logged in.
+// Returns { session, profile } — both null if not logged in.
 export async function getSessionAndProfile() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { session: null, profile: null };
+  if (!getToken()) return { session: null, profile: null };
   try {
-    const profile = await fetchProfile(session.user.id);
-    return { session, profile };
-  } catch {
-    return { session, profile: null };
+    const { profile } = await api('/auth/me');
+    return { session: { user: { id: profile.id } }, profile };
+  } catch (err) {
+    // Chỉ coi là "chưa đăng nhập" khi server nói vậy; lỗi mạng thì báo ra.
+    if (err.code === 'NO_SESSION') return { session: null, profile: null };
+    throw err;
   }
 }
 
-export async function listProfiles() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  return data;
+export function listProfiles() {
+  return api('/api/profiles');
 }
 
 export async function updateProfile(id, changes) {
-  const { error } = await supabase.from('profiles').update(changes).eq('id', id);
-  if (error) throw error;
+  await api(`/api/profiles/${id}`, { method: 'PATCH', body: changes });
 }
 
-// Calls the "create-user" Edge Function (holds the service role key server-side).
-// See supabase/functions/create-user/index.ts and SETUP_ACCOUNTS.md for deployment.
-export async function createAccount({ email, password, name, role }) {
-  const { data, error } = await supabase.functions.invoke('create-user', {
-    body: { email, password, name, role },
-  });
-  if (error) {
-    // supabase-js wraps non-2xx responses in a generic error; try to surface our own message.
-    const detail = await error.context?.json?.().catch(() => null);
-    throw new Error(detail?.error || error.message || 'Tạo tài khoản thất bại.');
-  }
-  if (data?.error) throw new Error(data.error);
-  return data;
+// Chỉ Admin gọi được (server kiểm tra).
+export function createAccount({ email, password, name, role }) {
+  return api('/api/profiles', { method: 'POST', body: { email, password, name, role } });
+}
+
+export function resetPassword(id, password) {
+  return api(`/api/profiles/${id}/password`, { method: 'POST', body: { password } });
+}
+
+// Đặt mật khẩu bằng mã thiết lập (SETUP_TOKEN của Worker) khi chưa đăng nhập được.
+export function setupPassword({ email, password, setupToken }) {
+  return api('/auth/setup-password', { method: 'POST', body: { email, password, setup_token: setupToken } });
 }

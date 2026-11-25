@@ -1,5 +1,5 @@
 import { DB } from './lib/db.js';
-import { seedIfEmpty, STATUS_FLOW } from './lib/seed.js';
+import { STATUS_FLOW } from './lib/seed.js';
 import { route, startRouter, navigate, refresh } from './lib/router.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderDesignList } from './views/designList.js';
@@ -7,13 +7,12 @@ import { renderDesignDetail } from './views/designDetail.js';
 import { renderColors } from './views/colors.js';
 import { renderPeople } from './views/people.js';
 import { renderAccounts } from './views/accounts.js';
-import { renderMigrateDrive } from './views/migrateDrive.js';
 import { openUploadDesignModal } from './views/uploadDesign.js';
 import { renderLogin } from './views/login.js';
 import { getSessionAndProfile, signOut } from './lib/auth.js';
 import { setCurrentProfile, getCurrentProfile, roleLabel } from './lib/session.js';
 import { escapeHtml, initials } from './lib/utils.js';
-import { isSupabaseConfigured } from './lib/supabase.js';
+import { isApiConfigured } from './lib/apiConfig.js';
 
 let routerStarted = false;
 
@@ -54,6 +53,7 @@ function renderUserFooter() {
 async function handleLogout() {
   await signOut();
   setCurrentProfile(null);
+  DB.invalidate();
   document.getElementById('app-shell').style.display = 'none';
   showLogin();
 }
@@ -70,6 +70,12 @@ function wireStaticUi() {
   });
   window.addEventListener('designs-changed', updateSidebarCounts);
   window.addEventListener('hashchange', updateSidebarActive);
+  // Server báo phiên hết hạn hoặc tài khoản vừa bị khoá.
+  window.addEventListener('session-ended', (e) => {
+    setCurrentProfile(null);
+    DB.invalidate();
+    showLogin(e.detail?.locked ? '🔒 Tài khoản của bạn đã bị khoá. Vui lòng liên hệ Admin.' : 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.');
+  });
 }
 
 function registerRoutes() {
@@ -81,15 +87,20 @@ function registerRoutes() {
   route('/sellers', async () => { await renderPeople('sellers'); updateSidebarActive(); });
   route('/designers', async () => { await renderPeople('designers'); updateSidebarActive(); });
   route('/accounts', async () => { await renderAccounts(); updateSidebarActive(); });
-  route('/migrate-drive', async () => { await renderMigrateDrive(); updateSidebarActive(); });
 }
 
 async function boot() {
-  if (!isSupabaseConfigured) {
+  if (!isApiConfigured) {
     showLogin();
     return;
   }
-  const { session, profile } = await getSessionAndProfile();
+  let session, profile;
+  try {
+    ({ session, profile } = await getSessionAndProfile());
+  } catch (err) {
+    showLogin(err.message);
+    return;
+  }
   if (!session || !profile) {
     showLogin();
     return;
@@ -104,10 +115,8 @@ async function boot() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'grid';
   document.getElementById('nav-accounts').style.display = profile.role === 'admin' ? '' : 'none';
-  document.getElementById('nav-migrate-drive').style.display = profile.role === 'admin' ? '' : 'none';
   renderUserFooter();
 
-  await seedIfEmpty();
   await updateSidebarCounts();
 
   if (!routerStarted) {

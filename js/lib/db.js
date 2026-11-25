@@ -1,9 +1,8 @@
-// Data layer for the app. Backed by Supabase Postgres (shared, real-time-ish across
-// every device) instead of the browser's local IndexedDB — everyone signed in sees
-// the same designs/sellers/designers/colors. The public API (DB.getAll/get/put/delete,
-// uid()) is kept identical to the old IndexedDB version so the rest of the app didn't
-// need to change.
-import { supabase } from './supabase.js';
+// Data layer for the app. Backed by the Cloudflare Worker API (worker/) and its D1
+// database — everyone signed in sees the same designs/sellers/designers/colors.
+// The public API (DB.getAll/get/put/delete, uid()) is unchanged from the Supabase
+// version so the rest of the app didn't need to change.
+import { api } from './api.js';
 
 export function uid() {
   return crypto.randomUUID();
@@ -65,68 +64,56 @@ function designToRow(design) {
   };
 }
 
-// Supabase/PostgREST caps a single request at 1000 rows by default. Now that
-// the "designs" table has crossed that count, a plain .select() silently drops
-// everything past row #1000 (newest tasks — insertion order — disappear from
-// every list/count in the app). Page through in batches of 1000 until a page
-// comes back short, then concatenate.
-const PAGE_SIZE = 1000;
-
-async function fetchAll(table) {
-  let all = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .order('created_at', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    all = all.concat(data);
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return table === 'designs' ? all.map(rowToDesign) : all;
-}
-
-// Downloading a whole table is the app's biggest source of Supabase egress: the
-// sidebar counts, the seed check and every view each used to call getAll('designs')
-// on their own, so one click re-downloaded the full table (1000+ rows with their
-// history) two or three times. That is what pushed the project over its egress
-// quota. getAll() now keeps each table in memory for a short while:
+// Every table has a version number on the server that goes up by one on each
+// change. getAll() keeps each table in memory together with its version:
 //  - calls made while a download is already running share that one download;
-//  - calls within CACHE_TTL_MS of the last download reuse it;
+//  - calls within CACHE_TTL_MS of the last check reuse the copy in memory;
+//  - after that, the server is asked "anything newer than version N?" and only
+//    sends the table again when it actually changed;
 //  - put()/delete() update the cached copy in place, so your own changes show
-//    immediately without downloading the table again.
+//    immediately.
 // Changes made by other people show up after at most CACHE_TTL_MS, or right away
-// on a page reload. Pass { fresh: true } to force a new download.
-const CACHE_TTL_MS = 60_000;
-const cache = new Map(); // table -> { at, rows, promise }
+// on a page reload. Pass { fresh: true } to check with the server now.
+const CACHE_TTL_MS = 20_000;
+const cache = new Map(); // table -> { at, rows, version, promise }
+
+const convert = (table, row) => (table === 'designs' ? rowToDesign(row) : row);
 
 // Callers get their own copy, so editing a record before (or without) saving it
 // never changes what the next caller sees.
 const copy = (rows) => structuredClone(rows);
 
-function patchCache(table, apply) {
+async function fetchAll(table, known) {
+  const query = known?.rows ? `?v=${known.version}` : '';
+  const data = await api(`/api/${table}${query}`);
+  if (data.unchanged) return { rows: known.rows, version: data.version };
+  return { rows: data.rows.map((row) => convert(table, row)), version: data.version };
+}
+
+function patchCache(table, version, apply) {
   const entry = cache.get(table);
   if (!entry) return;
   // A download is in flight and may or may not include this write: drop it from
   // the cache so the next getAll() downloads again instead of guessing.
-  if (entry.promise) cache.delete(table);
-  else apply(entry.rows);
+  if (entry.promise) return cache.delete(table);
+  apply(entry.rows);
+  // Our write is the only change since the copy we hold: it is now up to date.
+  // Otherwise someone else changed the table too, so re-check on the next read.
+  if (version === entry.version + 1) entry.version = version;
+  else entry.at = 0;
 }
 
 export const DB = {
   async getAll(table, { fresh = false } = {}) {
     const hit = cache.get(table);
-    if (hit && !fresh) {
-      if (hit.promise) return copy(await hit.promise);
-      if (Date.now() - hit.at < CACHE_TTL_MS) return copy(hit.rows);
-    }
-    const entry = { at: 0, rows: null, promise: null };
-    entry.promise = fetchAll(table).then(
-      (rows) => {
+    if (hit?.promise) return copy(await hit.promise);
+    if (hit && !fresh && Date.now() - hit.at < CACHE_TTL_MS) return copy(hit.rows);
+
+    const entry = { at: 0, rows: hit?.rows || null, version: hit?.version, promise: null };
+    entry.promise = fetchAll(table, hit).then(
+      ({ rows, version }) => {
         entry.rows = rows;
+        entry.version = version;
         entry.at = Date.now();
         entry.promise = null;
         return rows;
@@ -147,19 +134,16 @@ export const DB = {
   },
 
   async get(table, id) {
-    const { data, error } = await supabase.from(table).select('*').eq('id', id).maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
-    return table === 'designs' ? rowToDesign(data) : data;
+    const { row } = await api(`/api/${table}/${id}`);
+    return row ? convert(table, row) : null;
   },
 
   async put(table, record) {
     const row = table === 'designs' ? designToRow(record) : { ...record };
     if (!row.id) row.id = uid();
-    const { data, error } = await supabase.from(table).upsert(row).select().single();
-    if (error) throw error;
-    const saved = table === 'designs' ? rowToDesign(data) : data;
-    patchCache(table, (rows) => {
+    const data = await api(`/api/${table}/${row.id}`, { method: 'PUT', body: row });
+    const saved = convert(table, data.row);
+    patchCache(table, data.version, (rows) => {
       const index = rows.findIndex((r) => r.id === saved.id);
       if (index >= 0) rows[index] = copy(saved);
       else rows.push(copy(saved)); // new rows are the newest, and the list is oldest-first
@@ -168,11 +152,14 @@ export const DB = {
   },
 
   async delete(table, id) {
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) throw error;
-    patchCache(table, (rows) => {
+    await api(`/api/${table}/${id}`, { method: 'DELETE' });
+    // Deleting a seller/designer also clears them from designs on the server.
+    if (table !== 'designs') cache.delete('designs');
+    const entry = cache.get(table);
+    patchCache(table, entry ? entry.version + 1 : 0, (rows) => {
       const index = rows.findIndex((r) => r.id === id);
       if (index >= 0) rows.splice(index, 1);
     });
+    if (entry) entry.at = 0; // version after a delete is not reported: re-check next read
   },
 };

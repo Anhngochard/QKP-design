@@ -1,7 +1,7 @@
-import { supabase } from './supabase.js';
+import { api } from './api.js';
 
 // ID thư mục "QKP Design Files" trên Drive cá nhân của người dùng đã Authorize
-// qua OAuth (xem supabase/functions/drive-token). Không phải thông tin bí mật —
+// qua OAuth (xem driveToken trong worker/src/index.js). Không phải thông tin bí mật —
 // chỉ là nơi file sẽ được lưu vào.
 const DRIVE_FOLDER_ID = '1-G0dGt0B9YFCkSFTrMJxV1FeGFFIZV31';
 
@@ -11,11 +11,8 @@ let cachedExpiry = 0;
 async function getAccessToken() {
   const now = Date.now();
   if (cachedToken && now < cachedExpiry - 60_000) return cachedToken;
-  const { data, error } = await supabase.functions.invoke('drive-token', { body: {} });
-  if (error || !data?.access_token) {
-    const detail = await error?.context?.json?.().catch(() => null);
-    throw new Error(detail?.error || error?.message || 'Không lấy được quyền truy cập Google Drive.');
-  }
+  const data = await api('/api/drive-token', { method: 'POST' });
+  if (!data?.access_token) throw new Error('Không lấy được quyền truy cập Google Drive.');
   cachedToken = data.access_token;
   cachedExpiry = now + (data.expires_in || 3600) * 1000;
   return cachedToken;
